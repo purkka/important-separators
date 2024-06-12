@@ -1,7 +1,7 @@
 use eframe::{run_native, App, CreationContext};
 use egui::Context;
 use egui_graphs;
-use egui_graphs::{DefaultEdgeShape, DefaultNodeShape, GraphView};
+use egui_graphs::{DefaultEdgeShape, DefaultNodeShape, GraphView, SettingsInteraction, SettingsStyle};
 use petgraph;
 use petgraph::visit::{EdgeRef, IntoNodeReferences};
 use petgraph::prelude::StableGraph;
@@ -21,14 +21,19 @@ impl GraphApp {
 
 impl App for GraphApp {
     fn update(&mut self, ctx: &Context, _: &mut eframe::Frame) {
-        let settings_style = &egui_graphs::SettingsStyle::new().with_labels_always(true);
+        let settings_style = &SettingsStyle::new().with_labels_always(true);
+        let interaction_settings = &SettingsInteraction::new()
+            .with_dragging_enabled(true)
+            .with_node_clicking_enabled(true)
+            .with_node_selection_enabled(true);
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.add(
                 &mut GraphView::<_, _, _, _, DefaultNodeShape, DefaultEdgeShape>::new(
                     &mut self.graph,
                 )
-                    .with_styles(settings_style),
+                    .with_styles(settings_style)
+                    .with_interactions(interaction_settings),
             );
         });
     }
