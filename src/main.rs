@@ -1,5 +1,4 @@
 mod visualization;
-mod node;
 
 use petgraph::algo::ford_fulkerson;
 use petgraph::Graph;

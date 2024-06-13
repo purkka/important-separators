@@ -17,24 +17,24 @@ enum NodeType {
 }
 
 #[derive(Clone, Debug)]
-pub struct NodeData {
+pub(crate) struct NodeData {
     node_type: NodeType,
 }
 
 impl NodeData {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             node_type: NodeType::OTHER
         }
     }
 
-    pub fn new_source() -> Self {
+    pub(crate) fn new_source() -> Self {
         Self {
             node_type: NodeType::SOURCE
         }
     }
 
-    pub fn new_sink() -> Self {
+    pub(crate) fn new_sink() -> Self {
         Self {
             node_type: NodeType::SINK
         }
@@ -71,7 +71,7 @@ impl SourceSinkColor {
 }
 
 #[derive(Clone)]
-pub struct CustomNodeShape {
+pub(crate) struct CustomNodeShape {
     pos: Pos2,
     label_text: String,
     selected: bool,
