@@ -1,16 +1,17 @@
 use eframe::{run_native, App, CreationContext};
 use egui::{Context, Style, Visuals};
 use egui_graphs;
-use egui_graphs::{DefaultEdgeShape, GraphView, SettingsInteraction, SettingsStyle};
+use egui_graphs::{GraphView, SettingsInteraction, SettingsStyle};
 use petgraph;
 use petgraph::Directed;
 use petgraph::visit::{EdgeRef, IntoNodeReferences};
 use petgraph::prelude::{StableGraph};
 use petgraph::stable_graph::DefaultIx;
+use crate::visualization::edge::CustomEdgeShape;
 use crate::visualization::node::{CustomNodeShape, NodeData};
 
 struct GraphApp {
-    graph: egui_graphs::Graph<NodeData, u8, Directed, DefaultIx, CustomNodeShape>,
+    graph: egui_graphs::Graph<NodeData, u8, Directed, DefaultIx, CustomNodeShape, CustomEdgeShape>,
 }
 
 impl GraphApp {
@@ -32,7 +33,7 @@ impl App for GraphApp {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.add(
-                &mut GraphView::<_, _, _, _, CustomNodeShape, DefaultEdgeShape>::new(
+                &mut GraphView::<_, _, _, _, CustomNodeShape, CustomEdgeShape>::new(
                     &mut self.graph,
                 )
                     .with_styles(settings_style)
@@ -42,7 +43,7 @@ impl App for GraphApp {
     }
 }
 
-fn generate_graph(graph: &petgraph::Graph<(), u8>) -> egui_graphs::Graph<NodeData, u8, Directed, DefaultIx, CustomNodeShape> {
+fn generate_graph(graph: &petgraph::Graph<(), u8>) -> egui_graphs::Graph<NodeData, u8, Directed, DefaultIx, CustomNodeShape, CustomEdgeShape> {
     let mut g = StableGraph::new();
 
     graph.node_references().for_each(|(node_index, _)| {
