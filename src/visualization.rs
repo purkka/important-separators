@@ -1,16 +1,16 @@
 use eframe::{run_native, App, CreationContext};
-use egui::Context;
+use egui::{Context, Style, Visuals};
 use egui_graphs;
 use egui_graphs::{DefaultEdgeShape, GraphView, SettingsInteraction, SettingsStyle};
 use petgraph;
 use petgraph::Directed;
 use petgraph::visit::{EdgeRef, IntoNodeReferences};
-use petgraph::prelude::{NodeIndex, StableGraph};
+use petgraph::prelude::{StableGraph};
 use petgraph::stable_graph::DefaultIx;
-use crate::node::CustomNodeShape;
+use crate::node::{CustomNodeShape, NodeData};
 
 pub struct GraphApp {
-    graph: egui_graphs::Graph<(), u8, Directed, DefaultIx, CustomNodeShape>,
+    graph: egui_graphs::Graph<NodeData, u8, Directed, DefaultIx, CustomNodeShape>,
 }
 
 impl GraphApp {
@@ -42,11 +42,18 @@ impl App for GraphApp {
     }
 }
 
-fn generate_graph(graph: &petgraph::Graph<(), u8>) -> egui_graphs::Graph<(), u8, Directed, DefaultIx, CustomNodeShape> {
+fn generate_graph(graph: &petgraph::Graph<(), u8>) -> egui_graphs::Graph<NodeData, u8, Directed, DefaultIx, CustomNodeShape> {
     let mut g = StableGraph::new();
 
-    graph.node_references().for_each(|_| {
-        g.add_node(());
+    graph.node_references().for_each(|(node_index, _)| {
+        // For now have the first node be the source and the last node be the sink
+        if node_index.index() == 0usize {
+            g.add_node(NodeData::new_source());
+        } else if node_index.index() == graph.node_count() - 1 {
+            g.add_node(NodeData::new_sink());
+        } else {
+            g.add_node(NodeData::new());
+        }
     });
 
     graph.edge_references().for_each(|edge| {
@@ -61,7 +68,15 @@ pub fn draw_graph(graph: petgraph::Graph<(), u8>) {
     run_native(
         "Important Separator Project",
         native_options,
-        Box::new(|cc| Box::new(GraphApp::new(graph, cc))),
+        Box::new(|cc| {
+            // Set to dark mode always
+            let style = Style {
+                visuals: Visuals::dark(),
+                ..Style::default()
+            };
+            cc.egui_ctx.set_style(style);
+            Box::new(GraphApp::new(graph, cc))
+        }),
     )
         .unwrap();
 }
