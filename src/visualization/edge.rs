@@ -61,7 +61,11 @@ impl<E: Clone + SeparatorInfo> From<EdgeProps<E>> for CustomEdgeShape {
 }
 
 impl CustomEdgeShape {
-    fn get_tip_points(&mut self, start: Pos2, end: Pos2, line_points: &mut Vec<Pos2>) -> Vec<Pos2> {
+    fn get_tip_points(&mut self, is_directed: bool, start: Pos2, end: Pos2, line_points: &mut Vec<Pos2>) -> Vec<Pos2> {
+        if !is_directed {
+            return vec![];
+        }
+
         let tip_dir = (end - start).normalized();
         let tip_angle = self.tip_angle;
         let tip_size = self.tip_size;
@@ -78,15 +82,13 @@ impl CustomEdgeShape {
         vec![end, tip_start_1, tip_start_2]
     }
 
-    fn scale_shapes(metadata: &Metadata, stroke: &mut Stroke, line_points: &mut Vec<Pos2>, tip_points: &mut Vec<Pos2>) {
+    fn scale_stroke(metadata: &Metadata, stroke: &mut Stroke) {
         stroke.width = metadata.canvas_to_screen_size(stroke.width);
+    }
 
-        for i in 0..line_points.len() {
-            *line_points.get_mut(i).unwrap() = metadata.canvas_to_screen_pos(line_points[i]);
-        }
-
-        for i in 0..tip_points.len() {
-            *tip_points.get_mut(i).unwrap() = metadata.canvas_to_screen_pos(tip_points[i]);
+    fn scale_points(metadata: &Metadata, points: &mut Vec<Pos2>) {
+        for i in 0..points.len() {
+            *points.get_mut(i).unwrap() = metadata.canvas_to_screen_pos(points[i]);
         }
     }
 }
@@ -94,8 +96,7 @@ impl CustomEdgeShape {
 impl<N: Clone, E: Clone + SeparatorInfo, Ty: EdgeType, Ix: IndexType, D: DisplayNode<N, E, Ty, Ix>>
 DisplayEdge<N, E, Ty, Ix, D> for CustomEdgeShape {
     fn shapes(&mut self, start_node: &Node<N, E, Ty, Ix, D>, end_node: &Node<N, E, Ty, Ix, D>, ctx: &DrawContext) -> Vec<Shape> {
-        // Note that we assume the graphs we're working with to be simple directed graphs
-        // TODO Modify this to work for undirected graphs as well
+        // Note that we assume the graphs we're working with to be simple graphs
         let mut res = vec![];
 
         let color = match self.is_separator {
@@ -116,20 +117,24 @@ DisplayEdge<N, E, Ty, Ix, D> for CustomEdgeShape {
         let end = end_node.display().closest_boundary_point(-dir);
 
         let mut line_points = vec![start, end];
-        let mut tip_points = self.get_tip_points(start, end, &mut line_points);
+        let mut tip_points = self.get_tip_points(ctx.is_directed, start, end, &mut line_points);
 
-        Self::scale_shapes(ctx.meta, &mut stroke, &mut line_points, &mut tip_points);
+        Self::scale_stroke(ctx.meta, &mut stroke);
+        Self::scale_points(ctx.meta, &mut line_points);
+        Self::scale_points(ctx.meta, &mut tip_points);
 
         res.push(Shape::line_segment(
             [line_points[0], line_points[1]],
             stroke,
         ));
 
-        res.push(Shape::convex_polygon(
-            tip_points,
-            stroke.color,
-            Stroke::default(),
-        ));
+        if ctx.is_directed {
+            res.push(Shape::convex_polygon(
+                tip_points,
+                stroke.color,
+                Stroke::default(),
+            ));
+        }
 
         // we don't draw the label
 

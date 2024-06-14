@@ -4,15 +4,17 @@ use egui::{Context, Style, Visuals};
 use egui_graphs;
 use egui_graphs::{GraphView, SettingsInteraction, SettingsStyle};
 use petgraph;
-use petgraph::Directed;
+use petgraph::Undirected;
 use petgraph::visit::{EdgeRef, IntoNodeReferences};
-use petgraph::prelude::{StableGraph};
+use petgraph::prelude::StableUnGraph;
 use petgraph::stable_graph::DefaultIx;
 use crate::visualization::edge::{CustomEdgeShape, EdgeData};
 use crate::visualization::node::{CustomNodeShape, NodeData};
 
+// TODO Implement toggling between directed and undirected graphs e.g. via generics
+
 struct GraphApp {
-    graph: egui_graphs::Graph<NodeData, EdgeData, Directed, DefaultIx, CustomNodeShape, CustomEdgeShape>,
+    graph: egui_graphs::Graph<NodeData, EdgeData, Undirected, DefaultIx, CustomNodeShape, CustomEdgeShape>,
 }
 
 impl GraphApp {
@@ -27,25 +29,20 @@ impl GraphApp {
 impl App for GraphApp {
     fn update(&mut self, ctx: &Context, _: &mut eframe::Frame) {
         let settings_style = &SettingsStyle::new().with_labels_always(true);
-        let interaction_settings = &SettingsInteraction::new()
-            .with_dragging_enabled(true)
-            .with_node_clicking_enabled(true)
-            .with_node_selection_enabled(true);
+        let interaction_settings = &SettingsInteraction::new().with_dragging_enabled(true).with_node_clicking_enabled(true).with_node_selection_enabled(true);
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.add(
                 &mut GraphView::<_, _, _, _, CustomNodeShape, CustomEdgeShape>::new(
                     &mut self.graph,
-                )
-                    .with_styles(settings_style)
-                    .with_interactions(interaction_settings),
+                ).with_styles(settings_style).with_interactions(interaction_settings),
             );
         });
     }
 }
 
-fn generate_graph(graph: &petgraph::Graph<(), u8>, colored_edges: Vec<bool>) -> egui_graphs::Graph<NodeData, EdgeData, Directed, DefaultIx, CustomNodeShape, CustomEdgeShape> {
-    let mut g = StableGraph::new();
+fn generate_graph(graph: &petgraph::Graph<(), u8>, colored_edges: Vec<bool>) -> egui_graphs::Graph<NodeData, EdgeData, Undirected, DefaultIx, CustomNodeShape, CustomEdgeShape> {
+    let mut g = StableUnGraph::with_capacity(graph.node_count(), graph.edge_count());
 
     graph.node_references().for_each(|(node_index, _)| {
         // For now have the first node be the source and the last node be the sink
@@ -82,6 +79,5 @@ pub fn draw_graph(graph: petgraph::Graph<(), u8>, colored_edges: Vec<bool>) {
             cc.egui_ctx.set_style(style);
             Box::new(GraphApp::new(graph, colored_edges, cc))
         }),
-    )
-        .unwrap();
+    ).unwrap();
 }
