@@ -1,11 +1,36 @@
 use eframe::emath::{Pos2, Vec2};
 use eframe::epaint::Shape;
-use egui::Stroke;
+use egui::{Color32, Stroke};
 use egui_graphs::{DisplayEdge, DisplayNode, DrawContext, EdgeProps, Metadata, Node};
 use petgraph::stable_graph::IndexType;
 use petgraph::EdgeType;
 
 // Based on DefaultEdgeShape
+
+trait SeparatorInfo {
+    fn get_is_separator(&self) -> bool;
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct EdgeData {
+    is_separator: bool,
+}
+
+impl EdgeData {
+    pub(crate) fn new(is_separator: bool) -> Self {
+        Self {
+            is_separator,
+        }
+    }
+}
+
+impl SeparatorInfo for EdgeData {
+    fn get_is_separator(&self) -> bool {
+        self.is_separator
+    }
+}
+
+const SEPARATOR: Color32 = Color32::from_rgb(0x90, 0xEE, 0x90);
 
 #[derive(Clone)]
 pub(crate) struct CustomEdgeShape {
@@ -16,9 +41,10 @@ pub(crate) struct CustomEdgeShape {
     width: f32,
     tip_size: f32,
     tip_angle: f32,
+    is_separator: bool,
 }
 
-impl<E: Clone> From<EdgeProps<E>> for CustomEdgeShape {
+impl<E: Clone + SeparatorInfo> From<EdgeProps<E>> for CustomEdgeShape {
     fn from(edge_props: EdgeProps<E>) -> Self {
         assert_eq!(0usize, edge_props.order, "CustomEdgeShape only renders simple graphs (order 0)");
         Self {
@@ -29,6 +55,7 @@ impl<E: Clone> From<EdgeProps<E>> for CustomEdgeShape {
             width: 2.,
             tip_size: 12.5,
             tip_angle: std::f32::consts::TAU / 30.,
+            is_separator: edge_props.payload.get_is_separator(),
         }
     }
 }
@@ -64,18 +91,24 @@ impl CustomEdgeShape {
     }
 }
 
-impl<N: Clone, E: Clone, Ty: EdgeType, Ix: IndexType, D: DisplayNode<N, E, Ty, Ix>>
+impl<N: Clone, E: Clone + SeparatorInfo, Ty: EdgeType, Ix: IndexType, D: DisplayNode<N, E, Ty, Ix>>
 DisplayEdge<N, E, Ty, Ix, D> for CustomEdgeShape {
     fn shapes(&mut self, start_node: &Node<N, E, Ty, Ix, D>, end_node: &Node<N, E, Ty, Ix, D>, ctx: &DrawContext) -> Vec<Shape> {
         // Note that we assume the graphs we're working with to be simple directed graphs
         // TODO Modify this to work for undirected graphs as well
         let mut res = vec![];
 
-        let style = match self.selected {
-            true => ctx.ctx.style().visuals.widgets.active,
-            false => ctx.ctx.style().visuals.widgets.inactive,
+        let color = match self.is_separator {
+            true => SEPARATOR,
+            false => {
+                let style = match self.selected {
+                    true => ctx.ctx.style().visuals.widgets.active,
+                    false => ctx.ctx.style().visuals.widgets.inactive,
+                };
+                style.fg_stroke.color
+            }
         };
-        let color = style.fg_stroke.color;
+
         let mut stroke = Stroke::new(self.width, color);
 
         let dir = (end_node.location() - start_node.location()).normalized();
@@ -97,6 +130,8 @@ DisplayEdge<N, E, Ty, Ix, D> for CustomEdgeShape {
             stroke.color,
             Stroke::default(),
         ));
+
+        // we don't draw the label
 
         res
     }

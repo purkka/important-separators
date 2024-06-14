@@ -1,3 +1,4 @@
+use std::iter::zip;
 use eframe::{run_native, App, CreationContext};
 use egui::{Context, Style, Visuals};
 use egui_graphs;
@@ -7,18 +8,18 @@ use petgraph::Directed;
 use petgraph::visit::{EdgeRef, IntoNodeReferences};
 use petgraph::prelude::{StableGraph};
 use petgraph::stable_graph::DefaultIx;
-use crate::visualization::edge::CustomEdgeShape;
+use crate::visualization::edge::{CustomEdgeShape, EdgeData};
 use crate::visualization::node::{CustomNodeShape, NodeData};
 
 struct GraphApp {
-    graph: egui_graphs::Graph<NodeData, u8, Directed, DefaultIx, CustomNodeShape, CustomEdgeShape>,
+    graph: egui_graphs::Graph<NodeData, EdgeData, Directed, DefaultIx, CustomNodeShape, CustomEdgeShape>,
 }
 
 impl GraphApp {
     #[allow(dead_code)]
-    pub(crate) fn new(graph: petgraph::Graph<(), u8>, _: &CreationContext<'_>) -> Self {
+    pub(crate) fn new(graph: petgraph::Graph<(), u8>, colored_edges: Vec<bool>, _: &CreationContext<'_>) -> Self {
         Self {
-            graph: generate_graph(&graph),
+            graph: generate_graph(&graph, colored_edges),
         }
     }
 }
@@ -43,7 +44,7 @@ impl App for GraphApp {
     }
 }
 
-fn generate_graph(graph: &petgraph::Graph<(), u8>) -> egui_graphs::Graph<NodeData, u8, Directed, DefaultIx, CustomNodeShape, CustomEdgeShape> {
+fn generate_graph(graph: &petgraph::Graph<(), u8>, colored_edges: Vec<bool>) -> egui_graphs::Graph<NodeData, EdgeData, Directed, DefaultIx, CustomNodeShape, CustomEdgeShape> {
     let mut g = StableGraph::new();
 
     graph.node_references().for_each(|(node_index, _)| {
@@ -57,15 +58,17 @@ fn generate_graph(graph: &petgraph::Graph<(), u8>) -> egui_graphs::Graph<NodeDat
         }
     });
 
-    graph.edge_references().for_each(|edge| {
-        g.add_edge(edge.source(), edge.target(), *edge.weight());
+    zip(graph.edge_references(), colored_edges).for_each(|(edge, is_colored)| {
+        g.add_edge(edge.source(), edge.target(), EdgeData::new(is_colored));
     });
 
     egui_graphs::Graph::from(&g)
 }
 
 
-pub fn draw_graph(graph: petgraph::Graph<(), u8>) {
+pub fn draw_graph(graph: petgraph::Graph<(), u8>, colored_edges: Vec<bool>) {
+    assert_eq!(graph.edge_count(), colored_edges.len());
+
     let native_options = eframe::NativeOptions::default();
     run_native(
         "Important Separator Project",
@@ -77,7 +80,7 @@ pub fn draw_graph(graph: petgraph::Graph<(), u8>) {
                 ..Style::default()
             };
             cc.egui_ctx.set_style(style);
-            Box::new(GraphApp::new(graph, cc))
+            Box::new(GraphApp::new(graph, colored_edges, cc))
         }),
     )
         .unwrap();

@@ -1,5 +1,6 @@
 mod visualization;
 
+use std::iter::zip;
 use petgraph::algo::ford_fulkerson;
 use petgraph::Graph;
 
@@ -23,8 +24,11 @@ fn main() {
         (4, 3, 7),  // 7
         (4, 5, 4),  // 8
     ]);
-    let (max_flow, _) = ford_fulkerson(&graph, source, destination);
+    let (max_flow, flows) = ford_fulkerson(&graph, source, destination);
     assert_eq!(23, max_flow);
 
-    visualization::draw_graph(graph);
+    // Collect the full edges and color them
+    let full_edges: Vec<bool> = zip(graph.edge_references(), flows).map(|(edge, flow)| *edge.weight() == flow).collect();
+
+    visualization::draw_graph(graph, full_edges);
 }
