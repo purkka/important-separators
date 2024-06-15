@@ -31,7 +31,7 @@ fn main() {
     let m = graph.edge_count();
     for cut in cuts {
         let mut colored_edges = vec![false; m];
-        for edge_i in cut {
+        for edge_i in cut.cut_set {
             colored_edges[edge_i.index()] = true;
         }
         visualization::draw_graph(graph.clone(), colored_edges);

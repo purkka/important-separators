@@ -1,19 +1,35 @@
-use petgraph::visit::{Bfs, EdgeIndexable, EdgeRef, IntoEdges, IntoNeighbors, NodeIndexable, Visitable};
+use petgraph::visit::{Bfs, EdgeIndexable, EdgeRef, IntoEdges, IntoNeighbors, IntoNodeReferences, NodeIndexable, NodeRef, Visitable};
+
+#[derive(Debug)]
+pub struct Cut<G> where G: EdgeIndexable + NodeIndexable {
+    pub source_set: Vec<G::NodeId>,
+    pub destination_set: Vec<G::NodeId>,
+    pub cut_set: Vec<G::EdgeId>,
+}
+
+impl<G> PartialEq for Cut<G> where G: EdgeIndexable + NodeIndexable {
+    fn eq(&self, other: &Self) -> bool {
+        self.source_set == other.source_set && self.destination_set == other.destination_set && self.cut_set == other.cut_set
+    }
+}
 
 /// Get cuts between `source` and `destination` of size at most `k`
 pub fn generate_cuts<G>(graph: G,
                         source: G::NodeId,
                         destination: G::NodeId,
-                        k: usize) -> Vec<Vec<G::EdgeId>> where G: EdgeIndexable + NodeIndexable + IntoNeighbors + IntoEdges + Visitable {
-    // TODO Instead of cut edges, return cut with division of vertices as well as edges in the cut
-    let mut ret: Vec<Vec<G::EdgeId>> = vec![];
+                        k: usize) -> Vec<Cut<G>> where G: EdgeIndexable + NodeIndexable + IntoNeighbors + IntoEdges + Visitable + IntoNodeReferences {
+    let mut ret: Vec<Cut<G>> = vec![];
 
     // TODO Consider improving used data structure
-    let mut visited = vec![source];
+    let mut visited: Vec<G::NodeId> = vec![];
 
     // Traverse nodes using BFS
     let mut bfs = Bfs::new(&graph, source);
     while let Some(node) = bfs.next(&graph) {
+        if node != destination {  // never mark the destination as visited
+            visited.push(node);
+        }
+
         let mut cut_edges: Vec<G::EdgeId> = vec![];
         // TODO Maybe we don't have to go through every edge of every node here?
         for &visited_node in visited.iter() {
@@ -28,12 +44,20 @@ pub fn generate_cuts<G>(graph: G,
             }
         }
 
-        if cut_edges.len() <= k && !ret.contains(&cut_edges) {
-            ret.push(cut_edges);
-        }
+        if cut_edges.len() <= k {
+            let dest_set = graph.node_references().filter_map(|node| match visited.contains(&node.id()) {
+                true => None,
+                false => Some(node.id())
+            }).collect::<Vec<G::NodeId>>();
 
-        if node != destination {  // never mark the destination as visited
-            visited.push(node);
+            let cut = Cut {
+                source_set: visited.clone(),
+                destination_set: dest_set,
+                cut_set: cut_edges,
+            };
+            if !ret.contains(&cut) {
+                ret.push(cut);
+            }
         }
     }
 
