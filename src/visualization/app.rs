@@ -19,7 +19,7 @@ struct GraphApp {
 
 impl GraphApp {
     #[allow(dead_code)]
-    pub(crate) fn new(graph: petgraph::Graph<(), u8>, colored_edges: Vec<bool>, _: &CreationContext<'_>) -> Self {
+    pub(crate) fn new(graph: petgraph::Graph<(), (), Undirected>, colored_edges: Vec<bool>, _: &CreationContext<'_>) -> Self {
         Self {
             graph: generate_graph(&graph, colored_edges),
         }
@@ -41,7 +41,7 @@ impl App for GraphApp {
     }
 }
 
-fn generate_graph(graph: &petgraph::Graph<(), u8>, colored_edges: Vec<bool>) -> egui_graphs::Graph<NodeData, EdgeData, Undirected, DefaultIx, CustomNodeShape, CustomEdgeShape> {
+fn generate_graph(graph: &petgraph::Graph<(), (), Undirected>, colored_edges: Vec<bool>) -> egui_graphs::Graph<NodeData, EdgeData, Undirected, DefaultIx, CustomNodeShape, CustomEdgeShape> {
     let mut g = StableUnGraph::with_capacity(graph.node_count(), graph.edge_count());
 
     graph.node_references().for_each(|(node_index, _)| {
@@ -63,7 +63,7 @@ fn generate_graph(graph: &petgraph::Graph<(), u8>, colored_edges: Vec<bool>) -> 
 }
 
 
-pub fn draw_graph(graph: petgraph::Graph<(), u8>, colored_edges: Vec<bool>) {
+pub fn draw_graph(graph: petgraph::Graph<(), (), Undirected>, colored_edges: Vec<bool>) {
     assert_eq!(graph.edge_count(), colored_edges.len());
 
     let native_options = eframe::NativeOptions::default();
