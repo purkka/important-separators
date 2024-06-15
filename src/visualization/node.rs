@@ -5,14 +5,14 @@ use egui_graphs::{DisplayNode, DrawContext, NodeProps};
 use petgraph::EdgeType;
 use petgraph::stable_graph::IndexType;
 
-trait SourceSinkInfo {
+trait SourceDestinationInfo {
     fn get_node_type(&self) -> NodeType;
 }
 
 #[derive(Clone, Debug)]
 enum NodeType {
     SOURCE,
-    SINK,
+    DESTINATION,
     OTHER,
 }
 
@@ -34,26 +34,26 @@ impl NodeData {
         }
     }
 
-    pub(crate) fn new_sink() -> Self {
+    pub(crate) fn new_destination() -> Self {
         Self {
-            node_type: NodeType::SINK
+            node_type: NodeType::DESTINATION
         }
     }
 }
 
-impl SourceSinkInfo for NodeData {
+impl SourceDestinationInfo for NodeData {
     fn get_node_type(&self) -> NodeType {
         self.node_type.clone()
     }
 }
 
-struct SourceSinkColor;
+struct SourceDestinationColor;
 
-impl SourceSinkColor {
+impl SourceDestinationColor {
     const SOURCE: Color32 = Color32::from_rgb(0x80, 0x80, 0xFF);
     const SOURCE_INTERACTED: Color32 = Color32::from_rgb(0xB0, 0xB0, 0xFF);
-    const SINK: Color32 = Color32::from_rgb(0xFF, 0x80, 0x80);
-    const SINK_INTERACTED: Color32 = Color32::from_rgb(0xFF, 0xB0, 0xB0);
+    const DESTINATION: Color32 = Color32::from_rgb(0xFF, 0x80, 0x80);
+    const DESTINATION_INTERACTED: Color32 = Color32::from_rgb(0xFF, 0xB0, 0xB0);
 
     fn get_source_color(is_interacted: bool) -> Color32 {
         match is_interacted {
@@ -62,10 +62,10 @@ impl SourceSinkColor {
         }
     }
 
-    fn get_sink_color(is_interacted: bool) -> Color32 {
+    fn get_destination_color(is_interacted: bool) -> Color32 {
         match is_interacted {
-            true => Self::SINK_INTERACTED,
-            false => Self::SINK,
+            true => Self::DESTINATION_INTERACTED,
+            false => Self::DESTINATION,
         }
     }
 }
@@ -81,7 +81,7 @@ pub(crate) struct CustomNodeShape {
     node_type: NodeType,
 }
 
-impl<N: Clone + SourceSinkInfo> From<NodeProps<N>> for CustomNodeShape {
+impl<N: Clone + SourceDestinationInfo> From<NodeProps<N>> for CustomNodeShape {
     fn from(node_props: NodeProps<N>) -> Self {
         Self {
             pos: node_props.location,
@@ -94,7 +94,7 @@ impl<N: Clone + SourceSinkInfo> From<NodeProps<N>> for CustomNodeShape {
     }
 }
 
-impl<N: Clone + SourceSinkInfo, E: Clone, Ty: EdgeType, Ix: IndexType> DisplayNode<N, E, Ty, Ix> for CustomNodeShape {
+impl<N: Clone + SourceDestinationInfo, E: Clone, Ty: EdgeType, Ix: IndexType> DisplayNode<N, E, Ty, Ix> for CustomNodeShape {
     fn closest_boundary_point(&self, dir: Vec2) -> Pos2 {
         closest_point_on_circle(self.pos, self.radius, dir)
     }
@@ -105,8 +105,8 @@ impl<N: Clone + SourceSinkInfo, E: Clone, Ty: EdgeType, Ix: IndexType> DisplayNo
         let is_interacted = self.selected || self.dragged;
 
         let color = match self.node_type {
-            NodeType::SOURCE => SourceSinkColor::get_source_color(is_interacted),
-            NodeType::SINK => SourceSinkColor::get_sink_color(is_interacted),
+            NodeType::SOURCE => SourceDestinationColor::get_source_color(is_interacted),
+            NodeType::DESTINATION => SourceDestinationColor::get_destination_color(is_interacted),
             NodeType::OTHER => {
                 let style = match is_interacted {
                     true => ctx.ctx.style().visuals.widgets.active,

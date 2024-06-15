@@ -49,7 +49,7 @@ fn generate_graph(graph: &petgraph::Graph<(), (), Undirected>, cut: Cut<petgraph
         if cut.source_set.contains(&node_index) {
             g.add_node(NodeData::new_source());
         } else if cut.destination_set.contains(&node_index) {
-            g.add_node(NodeData::new_sink());
+            g.add_node(NodeData::new_destination());
         } else {
             // This is unreachable for now, but we'll keep it for when cuts change to separators
             g.add_node(NodeData::new());
