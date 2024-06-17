@@ -67,11 +67,11 @@ fn generate_graph(graph: &petgraph::Graph<(), (), Undirected>, cut: Cut<petgraph
 
 pub fn draw_graph(graph: petgraph::Graph<(), (), Undirected>, cut_input: Cut<&petgraph::Graph<(), (), Undirected>>) {
     // TODO Find better solution for monkey patch below
-    let cut: Cut<petgraph::Graph<(), (), Undirected>> = Cut {
-        source_set: cut_input.source_set,
-        destination_set: cut_input.destination_set,
-        cut_set: cut_input.cut_set,
-    };
+    let cut: Cut<petgraph::Graph<(), (), Undirected>> = Cut::new(
+        cut_input.source_set,
+        cut_input.destination_set,
+        cut_input.cut_set,
+    );
 
     let native_options = eframe::NativeOptions::default();
     run_native(
