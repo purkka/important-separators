@@ -32,7 +32,7 @@ impl<G> PartialEq for Cut<G> where G: EdgeIndexable + NodeIndexable {
 pub fn generate_cuts<G>(graph: G,
                         source: G::NodeId,
                         destination: G::NodeId,
-                        k: usize) -> Vec<Cut<G>> where G: EdgeIndexable + NodeIndexable + IntoNeighbors + IntoEdges + Visitable + IntoNodeReferences {
+                        k: usize) -> Vec<Cut<G>> where G: EdgeIndexable + NodeIndexable + Visitable + IntoNodeReferences + IntoNeighbors + IntoEdges {
     let mut ret: Vec<Cut<G>> = vec![];
 
     // TODO Consider improving used data structure
@@ -77,4 +77,14 @@ pub fn generate_cuts<G>(graph: G,
     }
 
     ret
+}
+
+pub fn filter_important_cuts<G>(cuts: &Vec<Cut<G>>) -> Vec<&Cut<G>>
+    where G: EdgeIndexable + NodeIndexable {
+    // TODO Consider writing this a bit nicer using combinations or something similar
+    cuts.into_iter().filter(|cut_i| {
+        cuts.iter().any(|cut_j| {
+            cut_j.size <= cut_i.size && cut_j.source_set.len() < cut_i.source_set.len()
+        })
+    }).collect()
 }

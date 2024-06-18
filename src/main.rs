@@ -24,8 +24,12 @@ fn main() {
         (4, 5, ()),  // 8
     ]);
 
-    let cuts = cuts::generate_cuts(&graph, source, destination, 3);
-    println!("{:?}", cuts);
+    let k = 3usize;
+    let cuts = cuts::generate_cuts(&graph, source, destination, k);
+    println!("Cuts with k = {}: {:?}", k, cuts);
+
+    let important_cuts = cuts::filter_important_cuts(&cuts);
+    println!("Important cuts: {:?}", important_cuts);
 
     // For now, draw each cut separately
     for cut in cuts {
