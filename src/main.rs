@@ -32,7 +32,7 @@ fn main() {
     println!("Important cuts: {:?}", important_cuts);
 
     // For now, draw each cut separately
-    for cut in cuts {
+    for cut in important_cuts {
         visualization::draw_graph(graph.clone(), cut);
     }
 }

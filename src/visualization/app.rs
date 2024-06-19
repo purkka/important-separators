@@ -4,7 +4,7 @@ use egui_graphs;
 use egui_graphs::{GraphView, SettingsInteraction, SettingsStyle};
 use petgraph;
 use petgraph::Undirected;
-use petgraph::visit::{EdgeRef, IntoNodeReferences};
+use petgraph::visit::{EdgeIndexable, EdgeRef};
 use petgraph::prelude::StableUnGraph;
 use petgraph::stable_graph::DefaultIx;
 use crate::cuts::Cut;
@@ -19,7 +19,7 @@ struct GraphApp {
 
 impl GraphApp {
     #[allow(dead_code)]
-    pub(crate) fn new(graph: petgraph::Graph<(), (), Undirected>, cut: Cut<petgraph::Graph<(), (), Undirected>>, _: &CreationContext<'_>) -> Self {
+    pub(crate) fn new(graph: petgraph::Graph<(), (), Undirected>, cut: Cut, _: &CreationContext<'_>) -> Self {
         Self {
             graph: generate_graph(&graph, cut),
         }
@@ -41,10 +41,12 @@ impl App for GraphApp {
     }
 }
 
-fn generate_graph(graph: &petgraph::Graph<(), (), Undirected>, cut: Cut<petgraph::Graph<(), (), Undirected>>) -> egui_graphs::Graph<NodeData, EdgeData, Undirected, DefaultIx, CustomNodeShape, CustomEdgeShape> {
-    let mut g = StableUnGraph::with_capacity(graph.node_count(), graph.edge_count());
+fn generate_graph(graph: &petgraph::Graph<(), (), Undirected>, cut: Cut) -> egui_graphs::Graph<NodeData, EdgeData, Undirected, DefaultIx, CustomNodeShape, CustomEdgeShape> {
+    let node_count = graph.node_count();
+    let edge_count = graph.edge_count();
+    let mut g = StableUnGraph::with_capacity(node_count, edge_count);
 
-    graph.node_references().for_each(|(node_index, _)| {
+    (0usize..node_count).for_each(|node_index| {
         // Color vertices according to the cut
         if cut.source_set.contains(&node_index) {
             g.add_node(NodeData::new_source());
@@ -57,7 +59,8 @@ fn generate_graph(graph: &petgraph::Graph<(), (), Undirected>, cut: Cut<petgraph
     });
 
     graph.edge_references().for_each(|edge| {
-        let is_colored = cut.cut_set.contains(&edge.id());
+        let edge_id = EdgeIndexable::to_index(&graph, edge.id());
+        let is_colored = cut.cut_edge_set.contains(&edge_id);
         g.add_edge(edge.source(), edge.target(), EdgeData::new(is_colored));
     });
 
@@ -65,14 +68,7 @@ fn generate_graph(graph: &petgraph::Graph<(), (), Undirected>, cut: Cut<petgraph
 }
 
 
-pub fn draw_graph(graph: petgraph::Graph<(), (), Undirected>, cut_input: Cut<&petgraph::Graph<(), (), Undirected>>) {
-    // TODO Find better solution for monkey patch below
-    let cut: Cut<petgraph::Graph<(), (), Undirected>> = Cut::new(
-        cut_input.source_set,
-        cut_input.destination_set,
-        cut_input.cut_set,
-    );
-
+pub fn draw_graph(graph: petgraph::Graph<(), (), Undirected>, cut: Cut) {
     let native_options = eframe::NativeOptions::default();
     run_native(
         "Important Separator Project",
