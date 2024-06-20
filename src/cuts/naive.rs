@@ -1,12 +1,21 @@
-use petgraph::prelude::{Bfs};
-use petgraph::visit::{EdgeIndexable, EdgeRef, IntoEdges, IntoNeighbors, IntoNodeReferences, NodeCount, NodeIndexable, Visitable};
 use crate::cuts::Cut;
+use petgraph::prelude::Bfs;
+use petgraph::visit::{
+    EdgeIndexable, EdgeRef, IntoEdges, IntoNeighbors, IntoNodeReferences, NodeCount, NodeIndexable,
+    Visitable,
+};
 
 /// Get cuts between `source` and `destination` of size at most `k`
-pub fn generate_cuts<G>(graph: G,
-                        source: G::NodeId,
-                        destination: G::NodeId,
-                        k: usize) -> Vec<Cut> where G: EdgeIndexable + NodeIndexable + Visitable + NodeCount + IntoNodeReferences + IntoNeighbors + IntoEdges {
+pub fn generate_cuts<G>(graph: G, source: G::NodeId, destination: G::NodeId, k: usize) -> Vec<Cut>
+where
+    G: EdgeIndexable
+        + NodeIndexable
+        + Visitable
+        + NodeCount
+        + IntoNodeReferences
+        + IntoNeighbors
+        + IntoEdges,
+{
     let mut ret: Vec<Cut> = vec![];
 
     // TODO Consider improving used data structure
@@ -15,7 +24,8 @@ pub fn generate_cuts<G>(graph: G,
     // Traverse nodes using BFS
     let mut bfs = Bfs::new(&graph, source);
     while let Some(node) = bfs.next(&graph) {
-        if node != destination {  // never mark the destination as visited
+        if node != destination {
+            // never mark the destination as visited
             visited.push(NodeIndexable::to_index(&graph, node));
         }
 
@@ -36,12 +46,10 @@ pub fn generate_cuts<G>(graph: G,
         }
 
         if cut_edges.len() <= k {
-            let dest_set = (0usize..graph.node_count()).filter(|n| !visited.contains(&n)).collect();
-            let cut = Cut::new(
-                visited.clone(),
-                dest_set,
-                cut_edges,
-            );
+            let dest_set = (0usize..graph.node_count())
+                .filter(|n| !visited.contains(&n))
+                .collect();
+            let cut = Cut::new(visited.clone(), dest_set, cut_edges);
             if !ret.contains(&cut) {
                 ret.push(cut);
             }
@@ -53,9 +61,12 @@ pub fn generate_cuts<G>(graph: G,
 
 pub fn filter_important_cuts(cuts: &Vec<Cut>) -> Vec<Cut> {
     // TODO Consider writing this a bit nicer using combinations or something similar
-    cuts.iter().filter(|&cut_i| {
-        cuts.iter().any(|cut_j| {
-            cut_j.size <= cut_i.size && cut_j.source_set.len() < cut_i.source_set.len()
+    cuts.iter()
+        .filter(|&cut_i| {
+            cuts.iter().any(|cut_j| {
+                cut_j.size <= cut_i.size && cut_j.source_set.len() < cut_i.source_set.len()
+            })
         })
-    }).map(|c| c.clone()).collect()
+        .map(|c| c.clone())
+        .collect()
 }

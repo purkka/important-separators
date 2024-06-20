@@ -1,5 +1,5 @@
 mod app;
-mod node;
 mod edge;
+mod node;
 
 pub use app::draw_graph;

@@ -2,8 +2,8 @@ use eframe::emath::{Pos2, Vec2};
 use eframe::epaint::{CircleShape, FontFamily, FontId, Shape, Stroke, TextShape};
 use egui::Color32;
 use egui_graphs::{DisplayNode, DrawContext, NodeProps};
-use petgraph::EdgeType;
 use petgraph::stable_graph::IndexType;
+use petgraph::EdgeType;
 
 trait SourceDestinationInfo {
     fn get_node_type(&self) -> NodeType;
@@ -24,19 +24,19 @@ pub(crate) struct NodeData {
 impl NodeData {
     pub(crate) fn new() -> Self {
         Self {
-            node_type: NodeType::OTHER
+            node_type: NodeType::OTHER,
         }
     }
 
     pub(crate) fn new_source() -> Self {
         Self {
-            node_type: NodeType::SOURCE
+            node_type: NodeType::SOURCE,
         }
     }
 
     pub(crate) fn new_destination() -> Self {
         Self {
-            node_type: NodeType::DESTINATION
+            node_type: NodeType::DESTINATION,
         }
     }
 }
@@ -94,7 +94,9 @@ impl<N: Clone + SourceDestinationInfo> From<NodeProps<N>> for CustomNodeShape {
     }
 }
 
-impl<N: Clone + SourceDestinationInfo, E: Clone, Ty: EdgeType, Ix: IndexType> DisplayNode<N, E, Ty, Ix> for CustomNodeShape {
+impl<N: Clone + SourceDestinationInfo, E: Clone, Ty: EdgeType, Ix: IndexType>
+    DisplayNode<N, E, Ty, Ix> for CustomNodeShape
+{
     fn closest_boundary_point(&self, dir: Vec2) -> Pos2 {
         closest_point_on_circle(self.pos, self.radius, dir)
     }

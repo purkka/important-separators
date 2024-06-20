@@ -1,25 +1,36 @@
+use crate::cuts::Cut;
+use crate::visualization::edge::{CustomEdgeShape, EdgeData};
+use crate::visualization::node::{CustomNodeShape, NodeData};
 use eframe::{run_native, App, CreationContext};
 use egui::{Context, Style, Visuals};
 use egui_graphs;
 use egui_graphs::{GraphView, SettingsInteraction, SettingsStyle};
 use petgraph;
-use petgraph::Undirected;
-use petgraph::visit::{EdgeIndexable, EdgeRef};
 use petgraph::prelude::StableUnGraph;
 use petgraph::stable_graph::DefaultIx;
-use crate::cuts::Cut;
-use crate::visualization::edge::{CustomEdgeShape, EdgeData};
-use crate::visualization::node::{CustomNodeShape, NodeData};
+use petgraph::visit::{EdgeIndexable, EdgeRef};
+use petgraph::Undirected;
 
 // TODO Implement toggling between directed and undirected graphs e.g. via generics
 
 struct GraphApp {
-    graph: egui_graphs::Graph<NodeData, EdgeData, Undirected, DefaultIx, CustomNodeShape, CustomEdgeShape>,
+    graph: egui_graphs::Graph<
+        NodeData,
+        EdgeData,
+        Undirected,
+        DefaultIx,
+        CustomNodeShape,
+        CustomEdgeShape,
+    >,
 }
 
 impl GraphApp {
     #[allow(dead_code)]
-    pub(crate) fn new(graph: petgraph::Graph<(), (), Undirected>, cut: Cut, _: &CreationContext<'_>) -> Self {
+    pub(crate) fn new(
+        graph: petgraph::Graph<(), (), Undirected>,
+        cut: Cut,
+        _: &CreationContext<'_>,
+    ) -> Self {
         Self {
             graph: generate_graph(&graph, cut),
         }
@@ -29,19 +40,28 @@ impl GraphApp {
 impl App for GraphApp {
     fn update(&mut self, ctx: &Context, _: &mut eframe::Frame) {
         let settings_style = &SettingsStyle::new().with_labels_always(true);
-        let interaction_settings = &SettingsInteraction::new().with_dragging_enabled(true).with_node_clicking_enabled(true).with_node_selection_enabled(true);
+        let interaction_settings = &SettingsInteraction::new()
+            .with_dragging_enabled(true)
+            .with_node_clicking_enabled(true)
+            .with_node_selection_enabled(true);
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.add(
                 &mut GraphView::<_, _, _, _, CustomNodeShape, CustomEdgeShape>::new(
                     &mut self.graph,
-                ).with_styles(settings_style).with_interactions(interaction_settings),
+                )
+                .with_styles(settings_style)
+                .with_interactions(interaction_settings),
             );
         });
     }
 }
 
-fn generate_graph(graph: &petgraph::Graph<(), (), Undirected>, cut: Cut) -> egui_graphs::Graph<NodeData, EdgeData, Undirected, DefaultIx, CustomNodeShape, CustomEdgeShape> {
+fn generate_graph(
+    graph: &petgraph::Graph<(), (), Undirected>,
+    cut: Cut,
+) -> egui_graphs::Graph<NodeData, EdgeData, Undirected, DefaultIx, CustomNodeShape, CustomEdgeShape>
+{
     let node_count = graph.node_count();
     let edge_count = graph.edge_count();
     let mut g = StableUnGraph::with_capacity(node_count, edge_count);
@@ -67,7 +87,6 @@ fn generate_graph(graph: &petgraph::Graph<(), (), Undirected>, cut: Cut) -> egui
     egui_graphs::Graph::from(&g)
 }
 
-
 pub fn draw_graph(graph: petgraph::Graph<(), (), Undirected>, cut: Cut) {
     let native_options = eframe::NativeOptions::default();
     run_native(
@@ -82,5 +101,6 @@ pub fn draw_graph(graph: petgraph::Graph<(), (), Undirected>, cut: Cut) {
             cc.egui_ctx.set_style(style);
             Box::new(GraphApp::new(graph, cut, cc))
         }),
-    ).unwrap();
+    )
+    .unwrap();
 }

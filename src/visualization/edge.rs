@@ -18,9 +18,7 @@ pub(crate) struct EdgeData {
 
 impl EdgeData {
     pub(crate) fn new(is_separator: bool) -> Self {
-        Self {
-            is_separator,
-        }
+        Self { is_separator }
     }
 }
 
@@ -46,7 +44,10 @@ pub(crate) struct CustomEdgeShape {
 
 impl<E: Clone + SeparatorInfo> From<EdgeProps<E>> for CustomEdgeShape {
     fn from(edge_props: EdgeProps<E>) -> Self {
-        assert_eq!(0usize, edge_props.order, "CustomEdgeShape only renders simple graphs (order 0)");
+        assert_eq!(
+            0usize, edge_props.order,
+            "CustomEdgeShape only renders simple graphs (order 0)"
+        );
         Self {
             order: edge_props.order,
             selected: edge_props.selected,
@@ -61,7 +62,13 @@ impl<E: Clone + SeparatorInfo> From<EdgeProps<E>> for CustomEdgeShape {
 }
 
 impl CustomEdgeShape {
-    fn get_tip_points(&mut self, is_directed: bool, start: Pos2, end: Pos2, line_points: &mut Vec<Pos2>) -> Vec<Pos2> {
+    fn get_tip_points(
+        &mut self,
+        is_directed: bool,
+        start: Pos2,
+        end: Pos2,
+        line_points: &mut Vec<Pos2>,
+    ) -> Vec<Pos2> {
         if !is_directed {
             return vec![];
         }
@@ -93,9 +100,20 @@ impl CustomEdgeShape {
     }
 }
 
-impl<N: Clone, E: Clone + SeparatorInfo, Ty: EdgeType, Ix: IndexType, D: DisplayNode<N, E, Ty, Ix>>
-DisplayEdge<N, E, Ty, Ix, D> for CustomEdgeShape {
-    fn shapes(&mut self, start_node: &Node<N, E, Ty, Ix, D>, end_node: &Node<N, E, Ty, Ix, D>, ctx: &DrawContext) -> Vec<Shape> {
+impl<
+        N: Clone,
+        E: Clone + SeparatorInfo,
+        Ty: EdgeType,
+        Ix: IndexType,
+        D: DisplayNode<N, E, Ty, Ix>,
+    > DisplayEdge<N, E, Ty, Ix, D> for CustomEdgeShape
+{
+    fn shapes(
+        &mut self,
+        start_node: &Node<N, E, Ty, Ix, D>,
+        end_node: &Node<N, E, Ty, Ix, D>,
+        ctx: &DrawContext,
+    ) -> Vec<Shape> {
         // Note that we assume the graphs we're working with to be simple graphs
         let mut res = vec![];
 
@@ -147,7 +165,12 @@ DisplayEdge<N, E, Ty, Ix, D> for CustomEdgeShape {
         self.label_text = state.label.to_string();
     }
 
-    fn is_inside(&self, start: &Node<N, E, Ty, Ix, D>, end: &Node<N, E, Ty, Ix, D>, pos: Pos2) -> bool {
+    fn is_inside(
+        &self,
+        start: &Node<N, E, Ty, Ix, D>,
+        end: &Node<N, E, Ty, Ix, D>,
+        pos: Pos2,
+    ) -> bool {
         let pos_start = start.location();
         let pos_end = end.location();
 
