@@ -1,4 +1,5 @@
 mod cut;
+mod ford_fulkerson;
 mod naive;
 
 pub use cut::Cut;
