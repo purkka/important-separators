@@ -58,12 +58,58 @@ where
     false
 }
 
+fn get_augmenting_paths<G>(
+    graph: G,
+    source: G::NodeId,
+    destination: G::NodeId,
+    k: usize,
+) -> Vec<Vec<<G as IntoEdgeReferences>::EdgeRef>>
+where
+    G: NodeIndexable
+        + EdgeIndexable
+        + NodeCount
+        + EdgeCount
+        + Visitable
+        + IntoEdges
+        + IntoEdgeReferences,
+{
+    let mut availability = vec![true; graph.edge_count()];
+    let mut next_edge = vec![None; graph.node_count()];
+
+    let mut paths: Vec<Vec<<G as IntoEdgeReferences>::EdgeRef>> = vec![];
+
+    while has_augmenting_path(&graph, source, destination, &mut next_edge, &availability) {
+        // get path
+        let mut path = vec![];
+        let mut vertex = destination;
+        let mut vertex_index = NodeIndexable::to_index(&graph, vertex);
+        while let Some(edge) = next_edge[vertex_index] {
+            path.push(edge);
+            vertex = other_endpoint(&graph, edge, vertex);
+            vertex_index = NodeIndexable::to_index(&graph, vertex);
+            // for each edge in the path, mark it as unavailable
+            let edge_index = EdgeIndexable::to_index(&graph, edge.id());
+            availability[edge_index] = false;
+        }
+
+        // flip order of path to have it start from the source and add to paths
+        paths.push(path.into_iter().rev().collect());
+    }
+
+    if paths.len() <= k {
+        paths
+    } else {
+        // no separators of size at most k, so return an empty vector
+        Vec::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use petgraph::graph::{EdgeReference, NodeIndex, UnGraph};
     use petgraph::visit::{EdgeRef, NodeIndexable};
 
-    use crate::cuts::ford_fulkerson::{has_augmenting_path, other_endpoint};
+    use crate::cuts::ford_fulkerson::{get_augmenting_paths, has_augmenting_path, other_endpoint};
 
     fn get_path_node_tuples(
         graph: &UnGraph<(), ()>,
@@ -169,5 +215,56 @@ mod tests {
         let path_node_tuples = get_path_node_tuples(&graph, &path, destination);
         let expected = vec![(6, 7), (5, 6), (0, 5)];
         assert_eq!(expected, path_node_tuples);
+    }
+
+    #[test]
+    fn get_all_augmenting_paths() {
+        fn get_node_tuples_for_path(path: &Vec<EdgeReference<()>>) -> Vec<(usize, usize)> {
+            let mut path_node_tuples = vec![];
+            for edge in path {
+                let source_index = edge.source().index();
+                let target_index = edge.target().index();
+                path_node_tuples.push((source_index, target_index));
+            }
+            path_node_tuples
+        }
+
+        let graph = UnGraph::<(), ()>::from_edges(&[
+            (0, 1),
+            (1, 2),
+            (2, 6),
+            (0, 3),
+            (3, 6),
+            (0, 4),
+            (4, 5),
+            (5, 6),
+        ]);
+        let source = NodeIndexable::from_index(&graph, 0);
+        let destination = NodeIndexable::from_index(&graph, 6);
+
+        let paths = get_augmenting_paths(&graph, source, destination, 3);
+
+        let expected_paths: Vec<Vec<(usize, usize)>> = vec![
+            vec![(0, 1), (1, 2), (2, 6)],
+            vec![(0, 3), (3, 6)],
+            vec![(0, 4), (4, 5), (5, 6)],
+        ];
+
+        assert!(paths.iter().all(|path| {
+            let path_node_tuples = get_node_tuples_for_path(path);
+            expected_paths.contains(&path_node_tuples)
+        }));
+    }
+
+    #[test]
+    fn no_augmenting_paths_for_too_small_k() {
+        let graph =
+            UnGraph::<(), ()>::from_edges(&[(0, 1), (1, 4), (0, 2), (2, 4), (0, 3), (3, 4)]);
+        let source = NodeIndexable::from_index(&graph, 0);
+        let destination = NodeIndexable::from_index(&graph, 4);
+        let k = 2;
+
+        let paths = get_augmenting_paths(&graph, source, destination, k);
+        assert!(paths.is_empty());
     }
 }
