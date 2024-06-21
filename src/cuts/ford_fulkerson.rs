@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use petgraph::visit::{
-    EdgeIndexable, EdgeRef, IntoEdgeReferences, IntoEdges, IntoNodeReferences, NodeIndexable,
+    EdgeCount, EdgeIndexable, EdgeRef, IntoEdgeReferences, IntoEdges, NodeCount, NodeIndexable,
     VisitMap, Visitable,
 };
 
@@ -26,16 +26,11 @@ fn has_augmenting_path<G>(
     graph: G,
     source: G::NodeId,
     destination: G::NodeId,
-    path: &mut [Option<G::EdgeRef>],
+    next_edge: &mut [Option<G::EdgeRef>],
     availability: &[bool],
 ) -> bool
 where
-    G: NodeIndexable
-        + EdgeIndexable
-        + Visitable
-        + IntoEdgeReferences
-        + IntoNodeReferences
-        + IntoEdges,
+    G: NodeIndexable + EdgeIndexable + Visitable + IntoEdges,
 {
     let mut visited = graph.visit_map();
     let mut queue: VecDeque<G::NodeId> = VecDeque::new();
@@ -49,7 +44,7 @@ where
             let edge_index: usize = EdgeIndexable::to_index(&graph, edge.id());
             let edge_available = availability[edge_index];
             if !visited.is_visited(&next) && edge_available {
-                path[NodeIndexable::to_index(&graph, next)] = Some(edge);
+                next_edge[NodeIndexable::to_index(&graph, next)] = Some(edge);
                 if next == destination {
                     // we've found an augmenting path
                     return true;
