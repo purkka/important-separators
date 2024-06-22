@@ -1,3 +1,5 @@
+use petgraph::graph::NodeIndex;
+use petgraph::{Directed, Graph};
 use std::collections::VecDeque;
 
 use petgraph::visit::{
@@ -58,12 +60,35 @@ where
     false
 }
 
-fn get_augmenting_paths<G>(
+fn generate_initial_residual_graph<G>(graph: G) -> Graph<(), (), Directed, usize>
+where
+    G: IntoEdgeReferences + NodeIndexable,
+{
+    // we assume the input graph to not contain any lone vertices, hence we may generate the residual
+    // graph from only the edges
+    let mut residual_graph_edges = vec![];
+    for edge in graph.edge_references() {
+        let source_index = NodeIndexable::to_index(&graph, edge.source());
+        let target_index = NodeIndexable::to_index(&graph, edge.target());
+        residual_graph_edges.push((source_index, target_index, ()));
+        residual_graph_edges.push((target_index, source_index, ()));
+    }
+    Graph::from_edges(residual_graph_edges)
+}
+
+/// Get augmenting paths and residual graph of graph if there exists a minimum cut of size at most k
+///
+/// The residual graph is built such that each edge that is part of an s-t path points from the
+/// destination to the source. Every other edge gets two edges that point in both directions
+fn get_augmenting_paths_and_residual_graph<G>(
     graph: G,
     source: G::NodeId,
     destination: G::NodeId,
     k: usize,
-) -> Vec<Vec<<G as IntoEdgeReferences>::EdgeRef>>
+) -> Option<(
+    Vec<Vec<<G as IntoEdgeReferences>::EdgeRef>>,
+    Graph<(), (), Directed, usize>,
+)>
 where
     G: NodeIndexable
         + EdgeIndexable
@@ -75,21 +100,39 @@ where
 {
     let mut availability = vec![true; graph.edge_count()];
     let mut next_edge = vec![None; graph.node_count()];
+    let mut residual = generate_initial_residual_graph(&graph);
 
     let mut paths: Vec<Vec<<G as IntoEdgeReferences>::EdgeRef>> = vec![];
 
     while has_augmenting_path(&graph, source, destination, &mut next_edge, &availability) {
-        // get path
+        // get path corresponding to current state of `next_edge`
         let mut path = vec![];
         let mut vertex = destination;
         let mut vertex_index = NodeIndexable::to_index(&graph, vertex);
         while let Some(edge) = next_edge[vertex_index] {
+            // While traversing, save the indices of the edge for removing the correct edge from
+            // the residual graph. Our paths are saved from the destination to the source, hence
+            // the first index is the target and the second the source. Refer to docstring for how
+            // the residual graph will look like in the end.
             path.push(edge);
+            let rm_edge_target_index = vertex_index;
             vertex = other_endpoint(&graph, edge, vertex);
             vertex_index = NodeIndexable::to_index(&graph, vertex);
+            let rm_edge_source_index = vertex_index;
             // for each edge in the path, mark it as unavailable
             let edge_index = EdgeIndexable::to_index(&graph, edge.id());
             availability[edge_index] = false;
+            // and adjust residual graph
+            let removed_edge = residual.find_edge(
+                NodeIndex::from(rm_edge_source_index),
+                NodeIndex::from(rm_edge_target_index),
+            );
+            match removed_edge {
+                None => panic!("Should always find an edge to remove in the residual graph"),
+                Some(removed_edge_index) => {
+                    let _ = residual.remove_edge(removed_edge_index);
+                }
+            }
         }
 
         // flip order of path to have it start from the source and add to paths
@@ -97,10 +140,9 @@ where
     }
 
     if paths.len() <= k {
-        paths
+        Some((paths, residual))
     } else {
-        // no separators of size at most k, so return an empty vector
-        Vec::new()
+        None
     }
 }
 
@@ -109,7 +151,9 @@ mod tests {
     use petgraph::graph::{EdgeReference, NodeIndex, UnGraph};
     use petgraph::visit::{EdgeRef, NodeIndexable};
 
-    use crate::cuts::ford_fulkerson::{get_augmenting_paths, has_augmenting_path, other_endpoint};
+    use crate::cuts::ford_fulkerson::{
+        get_augmenting_paths_and_residual_graph, has_augmenting_path, other_endpoint,
+    };
 
     fn get_path_node_tuples(
         graph: &UnGraph<(), ()>,
@@ -242,18 +286,22 @@ mod tests {
         let source = NodeIndexable::from_index(&graph, 0);
         let destination = NodeIndexable::from_index(&graph, 6);
 
-        let paths = get_augmenting_paths(&graph, source, destination, 3);
+        if let Some((paths, _)) =
+            get_augmenting_paths_and_residual_graph(&graph, source, destination, 3)
+        {
+            let expected_paths = vec![
+                vec![(0, 1), (1, 2), (2, 6)],
+                vec![(0, 3), (3, 6)],
+                vec![(0, 4), (4, 5), (5, 6)],
+            ];
 
-        let expected_paths: Vec<Vec<(usize, usize)>> = vec![
-            vec![(0, 1), (1, 2), (2, 6)],
-            vec![(0, 3), (3, 6)],
-            vec![(0, 4), (4, 5), (5, 6)],
-        ];
-
-        assert!(paths.iter().all(|path| {
-            let path_node_tuples = get_node_tuples_for_path(path);
-            expected_paths.contains(&path_node_tuples)
-        }));
+            assert!(paths.iter().all(|path| {
+                let path_node_tuples = get_node_tuples_for_path(path);
+                expected_paths.contains(&path_node_tuples)
+            }));
+        } else {
+            assert!(false);
+        }
     }
 
     #[test]
@@ -264,7 +312,28 @@ mod tests {
         let destination = NodeIndexable::from_index(&graph, 4);
         let k = 2;
 
-        let paths = get_augmenting_paths(&graph, source, destination, k);
-        assert!(paths.is_empty());
+        let paths_and_residual =
+            get_augmenting_paths_and_residual_graph(&graph, source, destination, k);
+        assert!(paths_and_residual.is_none());
+    }
+
+    #[test]
+    fn correct_residual_graph() {
+        let graph = UnGraph::<(), ()>::from_edges(&[(0, 1), (1, 2), (0, 3)]);
+        let source = NodeIndexable::from_index(&graph, 0);
+        let destination = NodeIndexable::from_index(&graph, 2);
+
+        if let Some((_, residual)) =
+            get_augmenting_paths_and_residual_graph(&graph, source, destination, 1)
+        {
+            let residual_expected_edges = vec![(2, 1), (1, 0), (0, 3), (3, 0)];
+
+            assert_eq!(4usize, residual.edge_count());
+            assert!(residual.edge_references().all(|edge| {
+                residual_expected_edges.contains(&(edge.source().index(), edge.target().index()))
+            }));
+        } else {
+            assert!(false);
+        }
     }
 }
