@@ -10,6 +10,13 @@ use petgraph::visit::{
 
 // Based on petgraph::algo::ford_fulkerson
 
+type ResidualGraph = Graph<(), (), Directed, usize>;
+
+struct Residual {
+    graph: ResidualGraph,
+    source: usize,
+}
+
 /// Gets the other endpoint of graph edge, if any, otherwise panics.
 fn other_endpoint<G>(graph: G, edge: G::EdgeRef, vertex: G::NodeId) -> G::NodeId
 where
@@ -61,7 +68,7 @@ where
     false
 }
 
-fn generate_initial_residual_graph<G>(graph: G) -> Graph<(), (), Directed, usize>
+fn generate_initial_residual_graph<G>(graph: G) -> ResidualGraph
 where
     G: IntoEdgeReferences + NodeIndexable,
 {
@@ -86,10 +93,7 @@ fn get_augmenting_paths_and_residual_graph<G>(
     source: G::NodeId,
     destination: G::NodeId,
     k: usize,
-) -> Option<(
-    Vec<Vec<<G as IntoEdgeReferences>::EdgeRef>>,
-    Graph<(), (), Directed, usize>,
-)>
+) -> Option<(Vec<Vec<<G as IntoEdgeReferences>::EdgeRef>>, Residual)>
 where
     G: NodeIndexable
         + EdgeIndexable
@@ -101,7 +105,7 @@ where
 {
     let mut availability = vec![true; graph.edge_count()];
     let mut next_edge = vec![None; graph.node_count()];
-    let mut residual = generate_initial_residual_graph(&graph);
+    let mut residual_graph = generate_initial_residual_graph(&graph);
 
     let mut paths: Vec<Vec<<G as IntoEdgeReferences>::EdgeRef>> = vec![];
 
@@ -124,14 +128,14 @@ where
             let edge_index = EdgeIndexable::to_index(&graph, edge.id());
             availability[edge_index] = false;
             // and adjust residual graph
-            let removed_edge = residual.find_edge(
+            let removed_edge = residual_graph.find_edge(
                 NodeIndex::from(rm_edge_source_index),
                 NodeIndex::from(rm_edge_target_index),
             );
             match removed_edge {
                 None => panic!("Should always find an edge to remove in the residual graph"),
                 Some(removed_edge_index) => {
-                    let _ = residual.remove_edge(removed_edge_index);
+                    let _ = residual_graph.remove_edge(removed_edge_index);
                 }
             }
         }
@@ -141,6 +145,10 @@ where
     }
 
     if paths.len() <= k {
+        let residual = Residual {
+            graph: residual_graph,
+            source: NodeIndexable::to_index(&graph, source),
+        };
         Some((paths, residual))
     } else {
         None
@@ -149,20 +157,23 @@ where
 
 fn generate_minimum_cut<G>(
     paths: Vec<Vec<<G as IntoEdgeReferences>::EdgeRef>>,
-    residual: Graph<(), (), Directed, usize>,
-    source: usize,
+    residual: Residual,
 ) -> Cut
 where
     G: NodeIndexable + IntoEdgeReferences,
 {
+    let residual_graph = residual.graph;
     let mut source_set = HashSet::<usize>::new();
     // find reachable region using BFS
-    let mut bfs = Bfs::new(&residual, NodeIndex::from(source));
-    while let Some(node) = bfs.next(&residual) {
-        source_set.insert(NodeIndexable::to_index(&residual, node));
+    let mut bfs = Bfs::new(&residual_graph, NodeIndex::from(residual.source));
+    while let Some(node) = bfs.next(&residual_graph) {
+        source_set.insert(NodeIndexable::to_index(&residual_graph, node));
     }
-    let mut destination_set = HashSet::<usize>::from_iter(0..residual.node_count());
-    destination_set = destination_set.difference(&source_set).map(|i| *i).collect();
+    let mut destination_set = HashSet::<usize>::from_iter(0..residual_graph.node_count());
+    destination_set = destination_set
+        .difference(&source_set)
+        .map(|i| *i)
+        .collect();
 
     // TODO Add cut edges
     Cut::new(
@@ -354,8 +365,8 @@ mod tests {
         {
             let residual_expected_edges = vec![(2, 1), (1, 0), (0, 3), (3, 0)];
 
-            assert_eq!(4usize, residual.edge_count());
-            assert!(residual.edge_references().all(|edge| {
+            assert_eq!(4usize, residual.graph.edge_count());
+            assert!(residual.graph.edge_references().all(|edge| {
                 residual_expected_edges.contains(&(edge.source().index(), edge.target().index()))
             }));
         } else {
