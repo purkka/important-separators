@@ -1,10 +1,11 @@
 use petgraph::graph::NodeIndex;
 use petgraph::{Directed, Graph};
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 
+use crate::cuts::Cut;
 use petgraph::visit::{
-    EdgeCount, EdgeIndexable, EdgeRef, IntoEdgeReferences, IntoEdges, NodeCount, NodeIndexable,
-    VisitMap, Visitable,
+    Bfs, EdgeCount, EdgeIndexable, EdgeRef, IntoEdgeReferences, IntoEdges, NodeCount,
+    NodeIndexable, VisitMap, Visitable,
 };
 
 // Based on petgraph::algo::ford_fulkerson
@@ -144,6 +145,31 @@ where
     } else {
         None
     }
+}
+
+fn generate_minimum_cut<G>(
+    paths: Vec<Vec<<G as IntoEdgeReferences>::EdgeRef>>,
+    residual: Graph<(), (), Directed, usize>,
+    source: usize,
+) -> Cut
+where
+    G: NodeIndexable + IntoEdgeReferences,
+{
+    let mut source_set = HashSet::<usize>::new();
+    // find reachable region using BFS
+    let mut bfs = Bfs::new(&residual, NodeIndex::from(source));
+    while let Some(node) = bfs.next(&residual) {
+        source_set.insert(NodeIndexable::to_index(&residual, node));
+    }
+    let mut destination_set = HashSet::<usize>::from_iter(0..residual.node_count());
+    destination_set = destination_set.difference(&source_set).map(|i| *i).collect();
+
+    // TODO Add cut edges
+    Cut::new(
+        source_set.into_iter().collect(),
+        destination_set.into_iter().collect(),
+        Vec::new(),
+    )
 }
 
 #[cfg(test)]
