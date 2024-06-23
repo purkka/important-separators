@@ -168,13 +168,7 @@ where
     }
 }
 
-fn generate_minimum_cut<G>(
-    paths: Vec<Vec<<G as IntoEdgeReferences>::EdgeRef>>,
-    residual: Residual,
-) -> Cut
-where
-    G: NodeIndexable + IntoEdgeReferences,
-{
+fn generate_minimum_cut(paths: Vec<Path>, residual: Residual) -> Cut {
     let residual_graph = residual.graph;
     let mut source_set = HashSet::<usize>::new();
     // find reachable region using BFS
@@ -188,11 +182,22 @@ where
         .map(|i| *i)
         .collect();
 
-    // TODO Add cut edges
+    let mut cut_edges = vec![];
+    for path in paths {
+        let find_index = (0..(path.vertices.len() - 1)).find(|&i| {
+            source_set.contains(&path.vertices[i])
+                && destination_set.contains(&path.vertices[i + 1])
+        });
+        match find_index {
+            None => panic!("Every path should have one edge in the minimum cut"),
+            Some(index) => cut_edges.push(path.edges[index]),
+        }
+    }
+
     Cut::new(
         source_set.into_iter().collect(),
         destination_set.into_iter().collect(),
-        Vec::new(),
+        cut_edges,
     )
 }
 
@@ -202,7 +207,8 @@ mod tests {
     use petgraph::visit::{EdgeRef, NodeIndexable};
 
     use crate::cuts::ford_fulkerson::{
-        get_augmenting_paths_and_residual_graph, has_augmenting_path, other_endpoint,
+        generate_minimum_cut, get_augmenting_paths_and_residual_graph, has_augmenting_path,
+        other_endpoint, Path, Residual, ResidualGraph,
     };
 
     fn get_path_vertex_tuples(
@@ -366,6 +372,97 @@ mod tests {
             assert!(residual.graph.edge_references().all(|edge| {
                 residual_expected_edges.contains(&(edge.source().index(), edge.target().index()))
             }));
+        } else {
+            assert!(false);
+        }
+    }
+
+    fn all_contained(lhs: Vec<usize>, rhs: Vec<usize>) -> bool {
+        lhs.iter().all(|elem| rhs.contains(elem))
+    }
+
+    #[test]
+    fn correct_minimum_graph_generation() {
+        // TODO Maybe this test (and the one below) could benefit from a visualization?
+        let residual_graph = ResidualGraph::from_edges(&[
+            // bidirectional edges
+            (0, 1),
+            (1, 0),
+            (1, 2),
+            (2, 1),
+            (1, 4),
+            (4, 1),
+            (2, 3),
+            (3, 2),
+            // path edges
+            (2, 0),
+            (4, 2),
+            (7, 4),
+            (3, 0),
+            (5, 3),
+            (6, 5),
+            (7, 6),
+        ]);
+        let paths = vec![
+            Path {
+                vertices: vec![0, 2, 4, 7],
+                edges: vec![1, 6, 8],
+            },
+            Path {
+                vertices: vec![0, 3, 5, 6, 7],
+                edges: vec![2, 7, 9, 10],
+            },
+        ];
+
+        let cut = generate_minimum_cut(
+            paths,
+            Residual {
+                graph: residual_graph,
+                source: 0,
+            },
+        );
+
+        let expected_source_set: Vec<usize> = vec![0, 1, 2, 3, 4];
+        let expected_destination_set: Vec<usize> = vec![5, 6, 7];
+        let expected_cut_edge_set: Vec<usize> = vec![7, 8];
+
+        assert_eq!(2, cut.size);
+        assert!(all_contained(expected_source_set, cut.source_set));
+        assert!(all_contained(expected_destination_set, cut.destination_set));
+        assert!(all_contained(expected_cut_edge_set, cut.cut_edge_set));
+    }
+
+    #[test]
+    fn correct_minimum_graph_generation_from_graph() {
+        let graph = UnGraph::<(), ()>::from_edges(&[
+            (0, 1),
+            (0, 2),
+            (0, 3),
+            (1, 2),
+            (2, 3),
+            (1, 4),
+            (2, 4),
+            (3, 5),
+            (4, 7),
+            (5, 6),
+            (6, 7),
+        ]);
+        let source = NodeIndexable::from_index(&graph, 0);
+        let destination = NodeIndexable::from_index(&graph, 7);
+
+        if let Some((paths, residual)) =
+            get_augmenting_paths_and_residual_graph(&graph, source, destination, 2)
+        {
+            let cut = generate_minimum_cut(paths, residual);
+
+            let expected_source_set: Vec<usize> = vec![0, 1, 2, 3, 4];
+            let expected_destination_set: Vec<usize> = vec![5, 6, 7];
+            let expected_cut_edge_set: Vec<usize> = vec![7, 8];
+
+            assert_eq!(2, cut.size);
+            assert!(all_contained(expected_source_set, cut.source_set));
+            assert!(all_contained(expected_destination_set, cut.destination_set));
+            assert!(all_contained(expected_cut_edge_set, cut.cut_edge_set));
         } else {
             assert!(false);
         }
