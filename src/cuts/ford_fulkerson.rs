@@ -205,22 +205,22 @@ mod tests {
         get_augmenting_paths_and_residual_graph, has_augmenting_path, other_endpoint,
     };
 
-    fn get_path_node_tuples(
+    fn get_path_vertex_tuples(
         graph: &UnGraph<(), ()>,
         path: &[Option<EdgeReference<()>>],
         start: NodeIndex,
     ) -> Vec<(usize, usize)> {
-        let mut path_node_tuples = vec![];
+        let mut path_vertex_tuples = vec![];
         let mut vertex = start;
         let mut vertex_index = NodeIndexable::to_index(&graph, vertex);
         while let Some(edge) = path[vertex_index] {
             let source_index = edge.source().index();
             let target_index = edge.target().index();
-            path_node_tuples.push((source_index, target_index));
+            path_vertex_tuples.push((source_index, target_index));
             vertex = other_endpoint(&graph, edge, vertex);
             vertex_index = NodeIndexable::to_index(&graph, vertex);
         }
-        path_node_tuples
+        path_vertex_tuples
     }
 
     #[test]
@@ -236,9 +236,9 @@ mod tests {
         assert!(found_path);
 
         // check the correctness of the path
-        let path_node_tuples = get_path_node_tuples(&graph, &path, destination);
+        let path_vertex_tuples = get_path_vertex_tuples(&graph, &path, destination);
         let expected = vec![(3, 4), (2, 3), (1, 2), (0, 1)];
-        assert_eq!(expected, path_node_tuples);
+        assert_eq!(expected, path_vertex_tuples);
     }
 
     #[test]
@@ -253,10 +253,10 @@ mod tests {
         let found_path = has_augmenting_path(&graph, source, destination, &mut path, &availability);
         assert!(found_path);
 
-        let path_node_tuples = get_path_node_tuples(&graph, &path, destination);
+        let path_vertex_tuples = get_path_vertex_tuples(&graph, &path, destination);
         let accepted1 = vec![(2, 5), (1, 2), (0, 1)];
         let accepted2 = vec![(4, 5), (3, 4), (0, 3)];
-        assert!(accepted1 == path_node_tuples || accepted2 == path_node_tuples);
+        assert!(accepted1 == path_vertex_tuples || accepted2 == path_vertex_tuples);
     }
 
     #[test]
@@ -306,9 +306,9 @@ mod tests {
         let found_path = has_augmenting_path(&graph, source, destination, &mut path, &availability);
         assert!(found_path);
 
-        let path_node_tuples = get_path_node_tuples(&graph, &path, destination);
+        let path_vertex_tuples = get_path_vertex_tuples(&graph, &path, destination);
         let expected = vec![(6, 7), (5, 6), (0, 5)];
-        assert_eq!(expected, path_node_tuples);
+        assert_eq!(expected, path_vertex_tuples);
     }
 
     #[test]
