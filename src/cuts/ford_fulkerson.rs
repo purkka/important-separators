@@ -10,6 +10,11 @@ use petgraph::visit::{
 
 // Based on petgraph::algo::ford_fulkerson
 
+struct Path {
+    vertices: Vec<usize>,
+    edges: Vec<usize>,
+}
+
 type ResidualGraph = Graph<(), (), Directed, usize>;
 
 struct Residual {
@@ -93,7 +98,7 @@ fn get_augmenting_paths_and_residual_graph<G>(
     source: G::NodeId,
     destination: G::NodeId,
     k: usize,
-) -> Option<(Vec<Vec<<G as IntoEdgeReferences>::EdgeRef>>, Residual)>
+) -> Option<(Vec<Path>, Residual)>
 where
     G: NodeIndexable
         + EdgeIndexable
@@ -107,19 +112,19 @@ where
     let mut next_edge = vec![None; graph.node_count()];
     let mut residual_graph = generate_initial_residual_graph(&graph);
 
-    let mut paths: Vec<Vec<<G as IntoEdgeReferences>::EdgeRef>> = vec![];
+    let mut paths: Vec<Path> = vec![];
 
     while has_augmenting_path(&graph, source, destination, &mut next_edge, &availability) {
         // get path corresponding to current state of `next_edge`
-        let mut path = vec![];
         let mut vertex = destination;
         let mut vertex_index = NodeIndexable::to_index(&graph, vertex);
+        let mut path_vertices = vec![vertex_index];
+        let mut path_edges = vec![];
         while let Some(edge) = next_edge[vertex_index] {
             // While traversing, save the indices of the edge for removing the correct edge from
             // the residual graph. Our paths are saved from the destination to the source, hence
             // the first index is the target and the second the source. Refer to docstring for how
             // the residual graph will look like in the end.
-            path.push(edge);
             let rm_edge_target_index = vertex_index;
             vertex = other_endpoint(&graph, edge, vertex);
             vertex_index = NodeIndexable::to_index(&graph, vertex);
@@ -127,6 +132,9 @@ where
             // for each edge in the path, mark it as unavailable
             let edge_index = EdgeIndexable::to_index(&graph, edge.id());
             availability[edge_index] = false;
+            // add vertex and edge to path
+            path_vertices.push(vertex_index);
+            path_edges.push(edge_index);
             // and adjust residual graph
             let removed_edge = residual_graph.find_edge(
                 NodeIndex::from(rm_edge_source_index),
@@ -140,8 +148,13 @@ where
             }
         }
 
-        // flip order of path to have it start from the source and add to paths
-        paths.push(path.into_iter().rev().collect());
+        // flip order of path vertices/edges to have them start from the source and add to paths
+        path_vertices = path_vertices.into_iter().rev().collect();
+        path_edges = path_edges.into_iter().rev().collect();
+        paths.push(Path {
+            vertices: path_vertices,
+            edges: path_edges,
+        });
     }
 
     if paths.len() <= k {
@@ -300,16 +313,6 @@ mod tests {
 
     #[test]
     fn get_all_augmenting_paths() {
-        fn get_node_tuples_for_path(path: &Vec<EdgeReference<()>>) -> Vec<(usize, usize)> {
-            let mut path_node_tuples = vec![];
-            for edge in path {
-                let source_index = edge.source().index();
-                let target_index = edge.target().index();
-                path_node_tuples.push((source_index, target_index));
-            }
-            path_node_tuples
-        }
-
         let graph = UnGraph::<(), ()>::from_edges(&[
             (0, 1),
             (1, 2),
@@ -326,16 +329,10 @@ mod tests {
         if let Some((paths, _)) =
             get_augmenting_paths_and_residual_graph(&graph, source, destination, 3)
         {
-            let expected_paths = vec![
-                vec![(0, 1), (1, 2), (2, 6)],
-                vec![(0, 3), (3, 6)],
-                vec![(0, 4), (4, 5), (5, 6)],
-            ];
-
-            assert!(paths.iter().all(|path| {
-                let path_node_tuples = get_node_tuples_for_path(path);
-                expected_paths.contains(&path_node_tuples)
-            }));
+            let expected_paths = vec![vec![0, 1, 2, 6], vec![0, 3, 6], vec![0, 4, 5, 6]];
+            assert!(paths
+                .iter()
+                .all(|path| { expected_paths.contains(&path.vertices) }));
         } else {
             assert!(false);
         }
