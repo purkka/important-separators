@@ -17,11 +17,6 @@ struct Path {
 
 type ResidualGraph = Graph<(), (), Directed, usize>;
 
-struct Residual {
-    graph: ResidualGraph,
-    source: usize,
-}
-
 /// Gets the other endpoint of graph edge, if any, otherwise panics.
 fn other_endpoint<G>(graph: G, edge: G::EdgeRef, vertex: G::NodeId) -> G::NodeId
 where
@@ -98,7 +93,7 @@ fn get_augmenting_paths_and_residual_graph<G>(
     source: G::NodeId,
     destination: G::NodeId,
     k: usize,
-) -> Option<(Vec<Path>, Residual)>
+) -> Option<(Vec<Path>, ResidualGraph)>
 where
     G: NodeIndexable
         + EdgeIndexable
@@ -158,21 +153,19 @@ where
     }
 
     if paths.len() <= k {
-        let residual = Residual {
-            graph: residual_graph,
-            source: NodeIndexable::to_index(&graph, source),
-        };
-        Some((paths, residual))
+        Some((paths, residual_graph))
     } else {
         None
     }
 }
 
-fn generate_minimum_cut(paths: Vec<Path>, residual: Residual) -> Cut {
-    let residual_graph = residual.graph;
+fn generate_minimum_cut(paths: Vec<Path>, residual_graph: ResidualGraph) -> Cut {
+    assert!(!paths.is_empty());
+    // we assume that the given paths are valid for the given residual graph, hence this works
+    let source = NodeIndex::from(paths[0].vertices[0]);
     let mut source_set = HashSet::<usize>::new();
     // find reachable region using BFS
-    let mut bfs = Bfs::new(&residual_graph, NodeIndex::from(residual.source));
+    let mut bfs = Bfs::new(&residual_graph, source);
     while let Some(node) = bfs.next(&residual_graph) {
         source_set.insert(NodeIndexable::to_index(&residual_graph, node));
     }
@@ -208,7 +201,7 @@ mod tests {
 
     use crate::cuts::ford_fulkerson::{
         generate_minimum_cut, get_augmenting_paths_and_residual_graph, has_augmenting_path,
-        other_endpoint, Path, Residual, ResidualGraph,
+        other_endpoint, Path, ResidualGraph,
     };
 
     fn get_path_vertex_tuples(
@@ -368,8 +361,8 @@ mod tests {
         {
             let residual_expected_edges = vec![(2, 1), (1, 0), (0, 3), (3, 0)];
 
-            assert_eq!(4usize, residual.graph.edge_count());
-            assert!(residual.graph.edge_references().all(|edge| {
+            assert_eq!(4usize, residual.edge_count());
+            assert!(residual.edge_references().all(|edge| {
                 residual_expected_edges.contains(&(edge.source().index(), edge.target().index()))
             }));
         } else {
@@ -414,13 +407,7 @@ mod tests {
             },
         ];
 
-        let cut = generate_minimum_cut(
-            paths,
-            Residual {
-                graph: residual_graph,
-                source: 0,
-            },
-        );
+        let cut = generate_minimum_cut(paths, residual_graph);
 
         let expected_source_set: Vec<usize> = vec![0, 1, 2, 3, 4];
         let expected_destination_set: Vec<usize> = vec![5, 6, 7];
