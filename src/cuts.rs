@@ -1,5 +1,5 @@
 mod cut;
-mod ford_fulkerson;
+mod path_residual;
 mod naive;
 
 pub use cut::Cut;
