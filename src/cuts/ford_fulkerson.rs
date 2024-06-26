@@ -84,10 +84,25 @@ where
     Graph::from_edges(residual_graph_edges)
 }
 
-/// Get augmenting paths and residual graph of graph if there exists a minimum cut of size at most k
+fn remove_edge_from_residual_graph(
+    residual_graph: &mut ResidualGraph,
+    source_index: usize,
+    target_index: usize,
+) {
+    let removed_edge =
+        residual_graph.find_edge(NodeIndex::from(source_index), NodeIndex::from(target_index));
+    match removed_edge {
+        None => panic!("Should always find an edge to remove in the residual graph"),
+        Some(removed_edge_index) => {
+            let _ = residual_graph.remove_edge(removed_edge_index);
+        }
+    }
+}
+
+/// Get augmenting paths and reverse residual graph of graph if there exists a minimum cut of size at most k
 ///
-/// The residual graph is built such that each edge that is part of an s-t path points from the
-/// destination to the source. Every other edge gets two edges that point in both directions
+/// The reverse residual graph is built such that each edge that is part of an s-t path points from the
+/// source to the destination. Every other edge gets two edges that point in both directions
 fn get_augmenting_paths_and_residual_graph<G>(
     graph: G,
     source: G::NodeId,
@@ -105,7 +120,9 @@ where
 {
     let mut availability = vec![true; graph.edge_count()];
     let mut next_edge = vec![None; graph.node_count()];
-    let mut residual_graph = generate_initial_residual_graph(&graph);
+    // we build the reverse of the residual graph as we use it to find the minimum cut closest
+    // to the target
+    let mut residual_graph_reverse = generate_initial_residual_graph(&graph);
 
     let mut paths: Vec<Path> = vec![];
 
@@ -118,29 +135,24 @@ where
         while let Some(edge) = next_edge[vertex_index] {
             // While traversing, save the indices of the edge for removing the correct edge from
             // the residual graph. Our paths are saved from the destination to the source, hence
-            // the first index is the target and the second the source. Refer to docstring for how
+            // the first index is the source and the second the target. Refer to docstring for how
             // the residual graph will look like in the end.
-            let rm_edge_target_index = vertex_index;
+            let rm_edge_source_index = vertex_index;
             vertex = other_endpoint(&graph, edge, vertex);
             vertex_index = NodeIndexable::to_index(&graph, vertex);
-            let rm_edge_source_index = vertex_index;
+            let rm_edge_target_index = vertex_index;
             // for each edge in the path, mark it as unavailable
             let edge_index = EdgeIndexable::to_index(&graph, edge.id());
             availability[edge_index] = false;
             // add vertex and edge to path
             path_vertices.push(vertex_index);
             path_edges.push(edge_index);
-            // and adjust residual graph
-            let removed_edge = residual_graph.find_edge(
-                NodeIndex::from(rm_edge_source_index),
-                NodeIndex::from(rm_edge_target_index),
+            // and adjust the reverse residual graph
+            remove_edge_from_residual_graph(
+                &mut residual_graph_reverse,
+                rm_edge_source_index,
+                rm_edge_target_index,
             );
-            match removed_edge {
-                None => panic!("Should always find an edge to remove in the residual graph"),
-                Some(removed_edge_index) => {
-                    let _ = residual_graph.remove_edge(removed_edge_index);
-                }
-            }
         }
 
         // flip order of path vertices/edges to have them start from the source and add to paths
@@ -153,25 +165,33 @@ where
     }
 
     if paths.len() <= k {
-        Some((paths, residual_graph))
+        Some((paths, residual_graph_reverse))
     } else {
         None
     }
 }
 
-fn generate_minimum_cut(paths: Vec<Path>, residual_graph: ResidualGraph) -> Cut {
+fn generate_minimum_cut_closest_to_destination(
+    paths: Vec<Path>,
+    residual_graph_reverse: ResidualGraph,
+) -> Cut {
     assert!(!paths.is_empty());
     // we assume that the given paths are valid for the given residual graph, hence this works
-    let source = NodeIndex::from(paths[0].vertices[0]);
-    let mut source_set = HashSet::<usize>::new();
-    // find reachable region using BFS
-    let mut bfs = Bfs::new(&residual_graph, source);
-    while let Some(node) = bfs.next(&residual_graph) {
-        source_set.insert(NodeIndexable::to_index(&residual_graph, node));
+    let destination = NodeIndex::from(
+        *paths[0]
+            .vertices
+            .last()
+            .expect("The vertices of a path cannot be empty"),
+    );
+    let mut destination_set = HashSet::<usize>::new();
+    // find reachable region starting from destination using BFS
+    let mut bfs = Bfs::new(&residual_graph_reverse, destination);
+    while let Some(node) = bfs.next(&residual_graph_reverse) {
+        destination_set.insert(NodeIndexable::to_index(&residual_graph_reverse, node));
     }
-    let mut destination_set = HashSet::<usize>::from_iter(0..residual_graph.node_count());
-    destination_set = destination_set
-        .difference(&source_set)
+    let mut source_set = HashSet::<usize>::from_iter(0..residual_graph_reverse.node_count());
+    source_set = source_set
+        .difference(&destination_set)
         .map(|i| *i)
         .collect();
 
@@ -200,8 +220,8 @@ mod tests {
     use petgraph::visit::{EdgeRef, NodeIndexable};
 
     use crate::cuts::ford_fulkerson::{
-        generate_minimum_cut, get_augmenting_paths_and_residual_graph, has_augmenting_path,
-        other_endpoint, Path, ResidualGraph,
+        generate_minimum_cut_closest_to_destination, get_augmenting_paths_and_residual_graph,
+        has_augmenting_path, other_endpoint, Path, ResidualGraph,
     };
 
     fn get_path_vertex_tuples(
@@ -356,14 +376,15 @@ mod tests {
         let source = NodeIndexable::from_index(&graph, 0);
         let destination = NodeIndexable::from_index(&graph, 2);
 
-        if let Some((_, residual)) =
+        if let Some((_, residual_reverse)) =
             get_augmenting_paths_and_residual_graph(&graph, source, destination, 1)
         {
-            let residual_expected_edges = vec![(2, 1), (1, 0), (0, 3), (3, 0)];
+            let residual_reverse_expected_edges = vec![(1, 2), (0, 1), (0, 3), (3, 0)];
 
-            assert_eq!(4usize, residual.edge_count());
-            assert!(residual.edge_references().all(|edge| {
-                residual_expected_edges.contains(&(edge.source().index(), edge.target().index()))
+            assert_eq!(4usize, residual_reverse.edge_count());
+            assert!(residual_reverse.edge_references().all(|edge| {
+                residual_reverse_expected_edges
+                    .contains(&(edge.source().index(), edge.target().index()))
             }));
         } else {
             assert!(false);
@@ -377,7 +398,7 @@ mod tests {
     #[test]
     fn correct_minimum_graph_generation() {
         // TODO Maybe this test (and the one below) could benefit from a visualization?
-        let residual_graph = ResidualGraph::from_edges(&[
+        let residual_graph_reverse = ResidualGraph::from_edges(&[
             // bidirectional edges
             (0, 1),
             (1, 0),
@@ -388,13 +409,13 @@ mod tests {
             (2, 3),
             (3, 2),
             // path edges
-            (2, 0),
-            (4, 2),
-            (7, 4),
-            (3, 0),
-            (5, 3),
-            (6, 5),
-            (7, 6),
+            (0, 2),
+            (2, 4),
+            (4, 7),
+            (0, 3),
+            (3, 5),
+            (5, 6),
+            (6, 7),
         ]);
         let paths = vec![
             Path {
@@ -407,11 +428,11 @@ mod tests {
             },
         ];
 
-        let cut = generate_minimum_cut(paths, residual_graph);
+        let cut = generate_minimum_cut_closest_to_destination(paths, residual_graph_reverse);
 
-        let expected_source_set: Vec<usize> = vec![0, 1, 2, 3, 4];
-        let expected_destination_set: Vec<usize> = vec![5, 6, 7];
-        let expected_cut_edge_set: Vec<usize> = vec![7, 8];
+        let expected_source_set: Vec<usize> = vec![0, 1, 2, 3, 4, 5, 6];
+        let expected_destination_set: Vec<usize> = vec![7];
+        let expected_cut_edge_set: Vec<usize> = vec![8, 10];
 
         assert_eq!(2, cut.size);
         assert!(all_contained(expected_source_set, cut.source_set));
@@ -437,19 +458,25 @@ mod tests {
         let source = NodeIndexable::from_index(&graph, 0);
         let destination = NodeIndexable::from_index(&graph, 7);
 
-        if let Some((paths, residual)) =
+        if let Some((paths, residual_reverse)) =
             get_augmenting_paths_and_residual_graph(&graph, source, destination, 2)
         {
-            let cut = generate_minimum_cut(paths, residual);
+            let cut_r_max = generate_minimum_cut_closest_to_destination(paths, residual_reverse);
 
-            let expected_source_set: Vec<usize> = vec![0, 1, 2, 3, 4];
-            let expected_destination_set: Vec<usize> = vec![5, 6, 7];
-            let expected_cut_edge_set: Vec<usize> = vec![7, 8];
+            let expected_source_set_rev: Vec<usize> = vec![0, 1, 2, 3, 4, 5, 6];
+            let expected_destination_set_rev: Vec<usize> = vec![7];
+            let expected_cut_edge_set_rev: Vec<usize> = vec![8, 10];
 
-            assert_eq!(2, cut.size);
-            assert!(all_contained(expected_source_set, cut.source_set));
-            assert!(all_contained(expected_destination_set, cut.destination_set));
-            assert!(all_contained(expected_cut_edge_set, cut.cut_edge_set));
+            assert_eq!(2, cut_r_max.size);
+            assert!(all_contained(expected_source_set_rev, cut_r_max.source_set));
+            assert!(all_contained(
+                expected_destination_set_rev,
+                cut_r_max.destination_set
+            ));
+            assert!(all_contained(
+                expected_cut_edge_set_rev,
+                cut_r_max.cut_edge_set
+            ));
         } else {
             assert!(false);
         }
