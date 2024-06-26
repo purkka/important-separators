@@ -1,11 +1,11 @@
 use std::collections::VecDeque;
 
-use petgraph::{Directed, Graph};
 use petgraph::graph::NodeIndex;
 use petgraph::visit::{
-    EdgeCount, EdgeIndexable, EdgeRef, IntoEdgeReferences, IntoEdges, NodeCount,
-    NodeIndexable, Visitable, VisitMap,
+    EdgeCount, EdgeIndexable, EdgeRef, IntoEdgeReferences, IntoEdges, NodeCount, NodeIndexable,
+    VisitMap, Visitable,
 };
+use petgraph::{Directed, Graph, Undirected};
 
 // Based on petgraph::algo::ford_fulkerson
 
@@ -15,6 +15,8 @@ pub struct Path {
 }
 
 pub type ResidualGraph = Graph<(), (), Directed, usize>;
+
+type UnGraph = Graph<(), (), Undirected, usize>;
 
 /// Gets the other endpoint of graph edge, if any, otherwise panics.
 fn other_endpoint<G>(graph: G, edge: G::EdgeRef, vertex: G::NodeId) -> G::NodeId
@@ -170,13 +172,52 @@ where
     }
 }
 
+fn create_contracted_graph<G>(
+    original_graph: G,
+    source_set: Vec<usize>,
+    destination_set: Vec<usize>,
+) -> (UnGraph, usize, usize)
+where
+    G: NodeIndexable + IntoEdgeReferences,
+{
+    fn transform_if_in_set(element: &mut usize, set: &Vec<usize>, target: usize) {
+        if set.contains(&element) {
+            *element = target;
+        }
+    }
+
+    let &new_source = source_set.first().expect("Source set should be nonempty");
+    let &new_destination = destination_set
+        .first()
+        .expect("Destination set should be nonempty");
+
+    let mut new_edges: Vec<(usize, usize)> = vec![];
+
+    for edge in original_graph.edge_references() {
+        let mut edge_source = NodeIndexable::to_index(&original_graph, edge.source());
+        let mut edge_target = NodeIndexable::to_index(&original_graph, edge.target());
+
+        transform_if_in_set(&mut edge_source, &source_set, new_source);
+        transform_if_in_set(&mut edge_target, &source_set, new_source);
+        transform_if_in_set(&mut edge_source, &destination_set, new_destination);
+        transform_if_in_set(&mut edge_target, &destination_set, new_destination);
+
+        if edge_source != edge_target && !new_edges.contains(&(edge_source, edge_target)) {
+            new_edges.push((edge_source, edge_target));
+        }
+    }
+
+    (UnGraph::from_edges(new_edges), new_source, new_destination)
+}
+
 #[cfg(test)]
 mod tests {
     use petgraph::graph::{EdgeReference, NodeIndex, UnGraph};
     use petgraph::visit::{EdgeRef, NodeIndexable};
 
     use crate::cuts::path_residual::{
-        get_augmenting_paths_and_residual_graph, has_augmenting_path, other_endpoint,
+        create_contracted_graph, get_augmenting_paths_and_residual_graph, has_augmenting_path,
+        other_endpoint,
     };
 
     fn get_path_vertex_tuples(
@@ -344,5 +385,29 @@ mod tests {
         } else {
             assert!(false);
         }
+    }
+
+    #[test]
+    fn correct_contracted_graph() {
+        let graph =
+            UnGraph::<(), ()>::from_edges(&[(0, 1), (0, 2), (1, 3), (1, 4), (2, 4), (3, 4)]);
+        let source_set = vec![0, 1];
+        let destination_set = vec![3, 4];
+
+        let (graph, _, _) = create_contracted_graph(&graph, source_set, destination_set);
+        let edge_indices = graph
+            .edge_references()
+            .map(|edge| (edge.source().index(), edge.target().index()))
+            .collect::<Vec<_>>();
+
+        assert_eq!(3, edge_indices.len());
+        assert!(edge_indices.contains(&(0, 2)) || edge_indices.contains(&(1, 2)));
+        assert!(edge_indices.contains(&(2, 3)) || edge_indices.contains(&(2, 4)));
+        assert!(
+            edge_indices.contains(&(0, 3))
+                || edge_indices.contains(&(0, 4))
+                || edge_indices.contains(&(1, 3))
+                || edge_indices.contains(&(1, 4))
+        );
     }
 }
