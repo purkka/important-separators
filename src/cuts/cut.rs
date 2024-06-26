@@ -32,10 +32,11 @@ fn generate_minimum_cut_closest_to_destination(
     paths: Vec<Path>,
     residual_graph_reverse: ResidualGraph,
 ) -> Cut {
-    assert!(!paths.is_empty());
     // we assume that the given paths are valid for the given residual graph, hence this works
     let destination = NodeIndex::from(
-        *paths[0]
+        *paths
+            .first()
+            .expect("Paths should be nonempty")
             .vertices
             .last()
             .expect("The vertices of a path cannot be empty"),
