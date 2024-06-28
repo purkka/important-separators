@@ -2,15 +2,16 @@ use std::cmp::{max, min};
 use std::collections::HashMap;
 use std::collections::VecDeque;
 
+use petgraph::{Directed, Graph, Undirected};
 use petgraph::graph::NodeIndex;
 use petgraph::visit::{
     EdgeCount, EdgeIndexable, EdgeRef, IntoEdgeReferences, IntoEdges, NodeCount, NodeIndexable,
-    VisitMap, Visitable,
+    Visitable, VisitMap,
 };
-use petgraph::{Directed, Graph, Undirected};
 
 // Based on petgraph::algo::ford_fulkerson
 
+#[derive(Debug)]
 pub struct Path {
     pub vertices: Vec<usize>,
     pub edges: Vec<usize>,
@@ -239,14 +240,43 @@ where
     }
 }
 
+pub fn get_augmenting_paths_and_residual_graph_for_sets<G>(
+    original_graph: G,
+    source_set: Vec<usize>,
+    destination_set: Vec<usize>,
+    k: usize,
+) -> Option<(UnGraph, Vec<Path>, ResidualGraph)>
+where
+    G: NodeIndexable
+        + EdgeIndexable
+        + NodeCount
+        + EdgeCount
+        + Visitable
+        + IntoEdges
+        + IntoEdgeReferences,
+{
+    let (graph, source, destination) =
+        create_contracted_graph(&original_graph, source_set, destination_set);
+
+    match get_augmenting_paths_and_residual_graph(
+        &graph,
+        NodeIndex::from(source),
+        NodeIndex::from(destination),
+        k,
+    ) {
+        Some((paths, residual)) => Some((graph, paths, residual)),
+        None => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use petgraph::graph::{EdgeReference, NodeIndex, UnGraph};
-    use petgraph::visit::{EdgeRef, NodeIndexable};
+    use petgraph::visit::{EdgeCount, EdgeRef, NodeIndexable};
 
     use crate::cuts::path_residual::{
-        create_contracted_graph, get_augmenting_paths_and_residual_graph, has_augmenting_path,
-        other_endpoint,
+        create_contracted_graph, get_augmenting_paths_and_residual_graph,
+        get_augmenting_paths_and_residual_graph_for_sets, has_augmenting_path, other_endpoint,
     };
 
     fn get_path_vertex_tuples(
@@ -436,5 +466,48 @@ mod tests {
         assert!(edge_indices.contains(&(1, 2)));
         assert_eq!(0, new_source);
         assert_eq!(2, new_dest);
+    }
+
+    #[test]
+    fn correct_augmented_paths_and_residual_for_sets() {
+        let original_graph = UnGraph::<(), ()>::from_edges(&[
+            (0, 1),
+            (0, 2),
+            (0, 3),
+            (1, 2),
+            (2, 3),
+            (1, 4),
+            (2, 4),
+            (3, 5),
+            (4, 7),
+            (5, 8),
+            (7, 10),
+            (8, 10),
+            (6, 10),
+            (6, 9),
+            (9, 10),
+        ]);
+        let source_set = vec![0, 1, 2];
+        let destination_set = vec![9, 10];
+        let k = 2;
+
+        match get_augmenting_paths_and_residual_graph_for_sets(
+            &original_graph,
+            source_set,
+            destination_set,
+            k,
+        ) {
+            Some((new_graph, paths, residual)) => {
+                assert_eq!(8, new_graph.node_count());
+                assert_eq!(8, new_graph.edge_count());
+                let expected_paths_edges = vec![vec![1, 3, 5], vec![0, 2, 4, 6]];
+                assert!(paths
+                    .iter()
+                    .all(|path| { expected_paths_edges.contains(&path.edges) }));
+                assert_eq!(8, residual.node_count());
+                assert_eq!(9, residual.edge_count());
+            }
+            None => assert!(false),
+        }
     }
 }
