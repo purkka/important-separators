@@ -1,3 +1,5 @@
+use std::cmp::{max, min};
+use std::collections::HashMap;
 use std::collections::VecDeque;
 
 use petgraph::graph::NodeIndex;
@@ -193,6 +195,9 @@ where
 
     let mut new_edges: Vec<(usize, usize)> = vec![];
 
+    // keep track of how many indices are kept to avoid creating extra vertices
+    let mut index_mapping = HashMap::<usize, usize>::new();
+
     for edge in original_graph.edge_references() {
         let mut edge_source = NodeIndexable::to_index(&original_graph, edge.source());
         let mut edge_target = NodeIndexable::to_index(&original_graph, edge.target());
@@ -202,12 +207,36 @@ where
         transform_if_in_set(&mut edge_source, &destination_set, new_destination);
         transform_if_in_set(&mut edge_target, &destination_set, new_destination);
 
-        if edge_source != edge_target && !new_edges.contains(&(edge_source, edge_target)) {
-            new_edges.push((edge_source, edge_target));
+        if edge_source != edge_target {
+            // add source and target indices to the index mapping in order if they don't exist already
+            let smaller = min(edge_source, edge_target);
+            let mut new_index = index_mapping.len();
+            index_mapping.entry(smaller).or_insert(new_index);
+            let bigger = max(edge_source, edge_target);
+            new_index = index_mapping.len();
+            index_mapping.entry(bigger).or_insert(new_index);
+
+            match (
+                index_mapping.get(&edge_source),
+                index_mapping.get(&edge_target),
+            ) {
+                (Some(&s), Some(&t)) => {
+                    if !new_edges.contains(&(s, t)) {
+                        new_edges.push((s, t))
+                    }
+                }
+                (_, _) => panic!("Edge source and target should always be in the index mapping"),
+            }
         }
     }
 
-    (UnGraph::from_edges(new_edges), new_source, new_destination)
+    match (
+        index_mapping.get(&new_source),
+        index_mapping.get(&new_destination),
+    ) {
+        (Some(&s), Some(&t)) => (UnGraph::from_edges(new_edges), s, t),
+        (_, _) => panic!("New edge source and target should always be in the index mapping"),
+    }
 }
 
 #[cfg(test)]
@@ -394,20 +423,18 @@ mod tests {
         let source_set = vec![0, 1];
         let destination_set = vec![3, 4];
 
-        let (graph, _, _) = create_contracted_graph(&graph, source_set, destination_set);
+        let (graph, new_source, new_dest) =
+            create_contracted_graph(&graph, source_set, destination_set);
         let edge_indices = graph
             .edge_references()
             .map(|edge| (edge.source().index(), edge.target().index()))
             .collect::<Vec<_>>();
 
         assert_eq!(3, edge_indices.len());
-        assert!(edge_indices.contains(&(0, 2)) || edge_indices.contains(&(1, 2)));
-        assert!(edge_indices.contains(&(2, 3)) || edge_indices.contains(&(2, 4)));
-        assert!(
-            edge_indices.contains(&(0, 3))
-                || edge_indices.contains(&(0, 4))
-                || edge_indices.contains(&(1, 3))
-                || edge_indices.contains(&(1, 4))
-        );
+        assert!(edge_indices.contains(&(0, 1)));
+        assert!(edge_indices.contains(&(0, 2)));
+        assert!(edge_indices.contains(&(1, 2)));
+        assert_eq!(0, new_source);
+        assert_eq!(2, new_dest);
     }
 }
