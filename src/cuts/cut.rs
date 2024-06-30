@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use petgraph::graph::{EdgeIndex, NodeIndex};
 use petgraph::prelude::Bfs;
-use petgraph::visit::{NodeIndexable};
+use petgraph::visit::NodeIndexable;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
 
@@ -31,15 +31,29 @@ impl Cut {
         }
     }
 
+    /// Pick arbitrary edge from cut. Returns the node indices such that the first node is from
+    /// the source set and the second from the destination set. Panics if edge does not exist,
+    /// is not found or doesn't have endpoints in the source and destination sets.
     pub fn arbitrary_edge(&self, graph: &UnGraph) -> (usize, usize) {
         match self.cut_edge_set.choose(&mut thread_rng()) {
             None => panic!("Trying to get arbitrary edge from empty cut."),
             Some(&edge) => match graph.edge_endpoints(EdgeIndex::from(edge)) {
                 None => panic!("Edge does not exist in graph."),
-                Some((node_a, node_b)) => (
-                    NodeIndexable::to_index(&graph, node_a),
-                    NodeIndexable::to_index(&graph, node_b),
-                ),
+                Some((node_a, node_b)) => {
+                    let node_a_index = NodeIndexable::to_index(&graph, node_a);
+                    let node_b_index = NodeIndexable::to_index(&graph, node_b);
+                    if self.source_set.contains(&node_a_index)
+                        && self.destination_set.contains(&node_b_index)
+                    {
+                        (node_a_index, node_b_index)
+                    } else if self.source_set.contains(&node_b_index)
+                        && self.destination_set.contains(&node_a_index)
+                    {
+                        (node_b_index, node_a_index)
+                    } else {
+                        panic!("Picked edge does not have one endpoint in source set and one in destination set");
+                    }
+                }
             },
         }
     }
@@ -193,7 +207,7 @@ mod tests {
 
     #[test]
     fn test_get_arbitrary_edge() {
-        let graph = path_residual::UnGraph::from_edges(&[(0, 1), (1, 2), (2, 3)]);
+        let graph = path_residual::UnGraph::from_edges(&[(0, 1), (2, 1), (2, 3)]);
         let cut = Cut::new(vec![0, 1], vec![2, 3], vec![1]);
 
         let arbitrary_edge = cut.arbitrary_edge(&graph);
