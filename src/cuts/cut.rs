@@ -31,9 +31,9 @@ impl Cut {
         }
     }
 
-    /// Pick arbitrary edge from cut. Returns the node indices such that the first node is from
-    /// the source set and the second from the destination set. Panics if edge does not exist,
-    /// is not found or doesn't have endpoints in the source and destination sets.
+    /// Pick arbitrary edge from cut. Returns a tuple of the edge index and the node index that lies
+    /// in the destination set. Panics if edge does not exist, is not found or doesn't have
+    /// endpoints in the source and destination sets.
     pub fn arbitrary_edge(&self, graph: &UnGraph) -> (usize, usize) {
         match self.cut_edge_set.choose(&mut thread_rng()) {
             None => panic!("Trying to get arbitrary edge from empty cut."),
@@ -45,11 +45,11 @@ impl Cut {
                     if self.source_set.contains(&node_a_index)
                         && self.destination_set.contains(&node_b_index)
                     {
-                        (node_a_index, node_b_index)
+                        (edge, node_b_index)
                     } else if self.source_set.contains(&node_b_index)
                         && self.destination_set.contains(&node_a_index)
                     {
-                        (node_b_index, node_a_index)
+                        (edge, node_a_index)
                     } else {
                         panic!("Picked edge does not have one endpoint in source set and one in destination set");
                     }
