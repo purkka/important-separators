@@ -1,8 +1,12 @@
-use crate::cuts::path_residual::{Path, ResidualGraph};
-use petgraph::graph::NodeIndex;
-use petgraph::prelude::Bfs;
-use petgraph::visit::NodeIndexable;
 use std::collections::HashSet;
+
+use petgraph::graph::{EdgeIndex, NodeIndex};
+use petgraph::prelude::Bfs;
+use petgraph::visit::{NodeIndexable};
+use rand::prelude::SliceRandom;
+use rand::thread_rng;
+
+use crate::cuts::path_residual::{Path, ResidualGraph, UnGraph};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Cut {
@@ -24,6 +28,19 @@ impl Cut {
             destination_set,
             cut_edge_set,
             size,
+        }
+    }
+
+    pub fn arbitrary_edge(&self, graph: &UnGraph) -> (usize, usize) {
+        match self.cut_edge_set.choose(&mut thread_rng()) {
+            None => panic!("Trying to get arbitrary edge from empty cut."),
+            Some(&edge) => match graph.edge_endpoints(EdgeIndex::from(edge)) {
+                None => panic!("Edge does not exist in graph."),
+                Some((node_a, node_b)) => (
+                    NodeIndexable::to_index(&graph, node_a),
+                    NodeIndexable::to_index(&graph, node_b),
+                ),
+            },
         }
     }
 }
@@ -74,12 +91,14 @@ fn generate_minimum_cut_closest_to_destination(
 
 #[cfg(test)]
 mod tests {
+    use petgraph::graph;
+    use petgraph::visit::NodeIndexable;
+
     use crate::cuts::cut::generate_minimum_cut_closest_to_destination;
     use crate::cuts::path_residual::{
         get_augmenting_paths_and_residual_graph, Path, ResidualGraph,
     };
-    use petgraph::graph::UnGraph;
-    use petgraph::visit::NodeIndexable;
+    use crate::cuts::{path_residual, Cut};
 
     fn all_contained(lhs: Vec<usize>, rhs: Vec<usize>) -> bool {
         lhs.iter().all(|elem| rhs.contains(elem))
@@ -132,7 +151,7 @@ mod tests {
 
     #[test]
     fn correct_minimum_graph_generation_from_graph() {
-        let graph = UnGraph::<(), ()>::from_edges(&[
+        let graph = graph::UnGraph::<(), ()>::from_edges(&[
             (0, 1),
             (0, 2),
             (0, 3),
@@ -170,5 +189,14 @@ mod tests {
         } else {
             assert!(false);
         }
+    }
+
+    #[test]
+    fn test_get_arbitrary_edge() {
+        let graph = path_residual::UnGraph::from_edges(&[(0, 1), (1, 2), (2, 3)]);
+        let cut = Cut::new(vec![0, 1], vec![2, 3], vec![1]);
+
+        let arbitrary_edge = cut.arbitrary_edge(&graph);
+        assert_eq!((1, 2), arbitrary_edge);
     }
 }
