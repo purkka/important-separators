@@ -2,12 +2,12 @@ use std::cmp::{max, min};
 use std::collections::HashMap;
 use std::collections::VecDeque;
 
-use petgraph::{Directed, Graph, Undirected};
 use petgraph::graph::NodeIndex;
 use petgraph::visit::{
     EdgeCount, EdgeIndexable, EdgeRef, IntoEdgeReferences, IntoEdges, NodeCount, NodeIndexable,
-    Visitable, VisitMap,
+    VisitMap, Visitable,
 };
+use petgraph::{Directed, Graph, Undirected};
 
 // Based on petgraph::algo::ford_fulkerson
 
@@ -15,6 +15,21 @@ use petgraph::visit::{
 pub struct Path {
     pub vertices: Vec<usize>,
     pub edges: Vec<usize>,
+}
+
+impl Path {
+    pub fn get_destination(paths: &Vec<Path>) -> usize {
+        *paths
+            .first()
+            .expect("Paths should be nonempty")
+            .vertices
+            .last()
+            .expect("The vertices of a path cannot be empty")
+    }
+
+    pub fn get_destination_node_index(paths: &Vec<Path>) -> NodeIndex<usize> {
+        NodeIndex::from(Path::get_destination(&paths))
+    }
 }
 
 pub type ResidualGraph = Graph<(), (), Directed, usize>;
@@ -272,7 +287,7 @@ where
 #[cfg(test)]
 mod tests {
     use petgraph::graph::{EdgeReference, NodeIndex, UnGraph};
-    use petgraph::visit::{EdgeCount, EdgeRef, NodeIndexable};
+    use petgraph::visit::{EdgeRef, NodeIndexable};
 
     use crate::cuts::path_residual::{
         create_contracted_graph, get_augmenting_paths_and_residual_graph,

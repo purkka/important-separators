@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use petgraph::graph::{EdgeIndex, NodeIndex};
+use petgraph::graph::EdgeIndex;
 use petgraph::prelude::Bfs;
 use petgraph::visit::NodeIndexable;
 use rand::prelude::SliceRandom;
@@ -64,14 +64,7 @@ fn generate_minimum_cut_closest_to_destination(
     residual_graph_reverse: ResidualGraph,
 ) -> Cut {
     // we assume that the given paths are valid for the given residual graph, hence this works
-    let destination = NodeIndex::from(
-        *paths
-            .first()
-            .expect("Paths should be nonempty")
-            .vertices
-            .last()
-            .expect("The vertices of a path cannot be empty"),
-    );
+    let destination = Path::get_destination_node_index(&paths);
     let mut destination_set = HashSet::<usize>::new();
     // find reachable region starting from destination using BFS
     let mut bfs = Bfs::new(&residual_graph_reverse, destination);
