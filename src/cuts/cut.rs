@@ -59,8 +59,18 @@ impl Cut {
     }
 }
 
-fn generate_minimum_cut_closest_to_destination(
-    paths: Vec<Path>,
+pub struct ImportantCut {
+    edge_indices: Vec<usize>,
+}
+
+impl ImportantCut {
+    pub fn from(edge_indices: Vec<usize>) -> Self {
+        Self { edge_indices }
+    }
+}
+
+pub fn generate_minimum_cut_closest_to_destination(
+    paths: &Vec<Path>,
     residual_graph_reverse: ResidualGraph,
 ) -> Cut {
     // we assume that the given paths are valid for the given residual graph, hence this works
@@ -144,7 +154,7 @@ mod tests {
             },
         ];
 
-        let cut = generate_minimum_cut_closest_to_destination(paths, residual_graph_reverse);
+        let cut = generate_minimum_cut_closest_to_destination(&paths, residual_graph_reverse);
 
         let expected_source_set: Vec<usize> = vec![0, 1, 2, 3, 4, 5, 6];
         let expected_destination_set: Vec<usize> = vec![7];
@@ -177,7 +187,7 @@ mod tests {
         if let Some((paths, residual_reverse)) =
             get_augmenting_paths_and_residual_graph(&graph, source, destination, 2)
         {
-            let cut_r_max = generate_minimum_cut_closest_to_destination(paths, residual_reverse);
+            let cut_r_max = generate_minimum_cut_closest_to_destination(&paths, residual_reverse);
 
             let expected_source_set_rev: Vec<usize> = vec![0, 1, 2, 3, 4, 5, 6];
             let expected_destination_set_rev: Vec<usize> = vec![7];

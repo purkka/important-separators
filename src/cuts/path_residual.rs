@@ -34,7 +34,7 @@ impl Path {
 
 pub type ResidualGraph = Graph<(), (), Directed, usize>;
 
-type UnGraph = Graph<(), (), Undirected, usize>;
+pub type UnGraph = Graph<(), (), Undirected, usize>;
 
 /// Gets the other endpoint of graph edge, if any, otherwise panics.
 fn other_endpoint<G>(graph: G, edge: G::EdgeRef, vertex: G::NodeId) -> G::NodeId
