@@ -36,6 +36,53 @@ pub type ResidualGraph = Graph<(), (), Directed, usize>;
 
 pub type UnGraph = Graph<(), (), Undirected, usize>;
 
+pub struct IndexMapping {
+    vertex_contracted_to_original: HashMap<usize, Vec<usize>>,
+    edge_contracted_to_original: HashMap<usize, Vec<usize>>,
+}
+
+impl IndexMapping {
+    fn new() -> Self {
+        Self {
+            vertex_contracted_to_original: Default::default(),
+            edge_contracted_to_original: Default::default(),
+        }
+    }
+
+    fn add_vertex(&mut self, contracted: usize, original: usize) {
+        match self.vertex_contracted_to_original.get(&contracted) {
+            None => self
+                .vertex_contracted_to_original
+                .insert(contracted, vec![original]),
+
+            Some(values) => {
+                let mut new_values = values.clone();
+                if !new_values.contains(&original) {
+                    new_values.push(original);
+                }
+                self.vertex_contracted_to_original
+                    .insert(contracted, new_values)
+            }
+        };
+    }
+
+    fn add_edge(&mut self, contracted: usize, original: usize) {
+        match self.edge_contracted_to_original.get(&contracted) {
+            None => self
+                .edge_contracted_to_original
+                .insert(contracted, vec![original]),
+            Some(values) => {
+                let mut new_values = values.clone();
+                if !new_values.contains(&original) {
+                    new_values.push(original);
+                }
+                self.edge_contracted_to_original
+                    .insert(contracted, new_values)
+            }
+        };
+    }
+}
+
 /// Gets the other endpoint of graph edge, if any, otherwise panics.
 fn other_endpoint<G>(graph: G, edge: G::EdgeRef, vertex: G::NodeId) -> G::NodeId
 where
@@ -194,9 +241,9 @@ fn create_contracted_graph<G>(
     original_graph: G,
     source_set: Vec<usize>,
     destination_set: Vec<usize>,
-) -> (UnGraph, usize, usize)
+) -> (UnGraph, usize, usize, IndexMapping)
 where
-    G: NodeIndexable + IntoEdgeReferences,
+    G: NodeIndexable + EdgeIndexable + IntoEdgeReferences,
 {
     fn transform_if_in_set(element: &mut usize, set: &Vec<usize>, target: usize) {
         if set.contains(&element) {
@@ -212,45 +259,76 @@ where
     let mut new_edges: Vec<(usize, usize)> = vec![];
 
     // keep track of how many indices are kept to avoid creating extra vertices
-    let mut index_mapping = HashMap::<usize, usize>::new();
+    let mut creation_index_mapping = HashMap::<usize, usize>::new();
+
+    // keep track of which contracted edges/vertices correspond to which edges/vertices in the original graph
+    let mut edge_vertex_index_mapping = IndexMapping::new();
 
     for edge in original_graph.edge_references() {
+        let original_edge_index = EdgeIndexable::to_index(&original_graph, edge.id());
+
         let mut edge_source = NodeIndexable::to_index(&original_graph, edge.source());
         let mut edge_target = NodeIndexable::to_index(&original_graph, edge.target());
+
+        let s_before_transform = edge_source;
+        let t_before_transform = edge_target;
 
         transform_if_in_set(&mut edge_source, &source_set, new_source);
         transform_if_in_set(&mut edge_target, &source_set, new_source);
         transform_if_in_set(&mut edge_source, &destination_set, new_destination);
         transform_if_in_set(&mut edge_target, &destination_set, new_destination);
 
-        if edge_source != edge_target {
-            // add source and target indices to the index mapping in order if they don't exist already
-            let smaller = min(edge_source, edge_target);
-            let mut new_index = index_mapping.len();
-            index_mapping.entry(smaller).or_insert(new_index);
-            let bigger = max(edge_source, edge_target);
-            new_index = index_mapping.len();
-            index_mapping.entry(bigger).or_insert(new_index);
+        // add source and target indices to the index mapping in order
+        let smaller = min(edge_source, edge_target);
+        let mut new_index = creation_index_mapping.len();
+        creation_index_mapping.entry(smaller).or_insert(new_index);
+        let bigger = max(edge_source, edge_target);
+        new_index = creation_index_mapping.len();
+        creation_index_mapping.entry(bigger).or_insert(new_index);
 
-            match (
-                index_mapping.get(&edge_source),
-                index_mapping.get(&edge_target),
-            ) {
-                (Some(&s), Some(&t)) => {
-                    if !new_edges.contains(&(s, t)) {
-                        new_edges.push((s, t))
-                    }
+        // get indices of edge source and target using our creation index mapping
+        match (
+            creation_index_mapping.get(&edge_source),
+            creation_index_mapping.get(&edge_target),
+        ) {
+            (Some(&s), Some(&t)) => {
+                // add vertex mapping from the indices in the new graph to the indices of the original graph
+                edge_vertex_index_mapping.add_vertex(s, s_before_transform);
+                edge_vertex_index_mapping.add_vertex(t, t_before_transform);
+
+                // add edge to new graph if both endpoints are not in the source/target
+                // note that we use the unmapped transformed indices for this
+                if edge_source != edge_target {
+                    // check if edge has already been added using position
+                    let contracted_edge_index = match new_edges.iter().position(|&p| p == (s, t)) {
+                        None => {
+                            // edge (s, t) is not in new_edges, so add it there as well
+                            new_edges.push((s, t));
+                            // and return the new index
+                            new_edges.len() - 1
+                        }
+                        // otherwise we only return the index of the edge
+                        Some(index) => index,
+                    };
+                    // add edge to our index mapping
+                    edge_vertex_index_mapping.add_edge(contracted_edge_index, original_edge_index);
                 }
-                (_, _) => panic!("Edge source and target should always be in the index mapping"),
             }
-        }
+            (_, _) => panic!("Edge source and target should always be in the index mapping"),
+        };
     }
 
+    // after we've added all edges, we can return the new contracted graph
     match (
-        index_mapping.get(&new_source),
-        index_mapping.get(&new_destination),
+        creation_index_mapping.get(&new_source),
+        creation_index_mapping.get(&new_destination),
     ) {
-        (Some(&s), Some(&t)) => (UnGraph::from_edges(new_edges), s, t),
+        (Some(&s), Some(&t)) => (
+            UnGraph::from_edges(new_edges),
+            s,
+            t,
+            edge_vertex_index_mapping,
+        ),
         (_, _) => panic!("New edge source and target should always be in the index mapping"),
     }
 }
@@ -260,7 +338,7 @@ pub fn get_augmenting_paths_and_residual_graph_for_sets<G>(
     source_set: Vec<usize>,
     destination_set: Vec<usize>,
     k: usize,
-) -> Option<(UnGraph, Vec<Path>, ResidualGraph)>
+) -> Option<(Vec<Path>, ResidualGraph, IndexMapping)>
 where
     G: NodeIndexable
         + EdgeIndexable
@@ -270,7 +348,7 @@ where
         + IntoEdges
         + IntoEdgeReferences,
 {
-    let (graph, source, destination) =
+    let (graph, source, destination, index_mapping) =
         create_contracted_graph(&original_graph, source_set, destination_set);
 
     match get_augmenting_paths_and_residual_graph(
@@ -279,13 +357,15 @@ where
         NodeIndex::from(destination),
         k,
     ) {
-        Some((paths, residual)) => Some((graph, paths, residual)),
+        Some((paths, residual)) => Some((paths, residual, index_mapping)),
         None => None,
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use petgraph::graph::{EdgeReference, NodeIndex, UnGraph};
     use petgraph::visit::{EdgeRef, NodeIndexable};
 
@@ -468,12 +548,18 @@ mod tests {
         let source_set = vec![0, 1];
         let destination_set = vec![3, 4];
 
-        let (graph, new_source, new_dest) =
+        let (graph, new_source, new_dest, index_mapping) =
             create_contracted_graph(&graph, source_set, destination_set);
         let edge_indices = graph
             .edge_references()
             .map(|edge| (edge.source().index(), edge.target().index()))
             .collect::<Vec<_>>();
+
+        let expected_vertex_mapping =
+            HashMap::<usize, Vec<usize>>::from([(0, vec![0, 1]), (1, vec![2]), (2, vec![3, 4])]);
+
+        let expected_edge_mapping =
+            HashMap::<usize, Vec<usize>>::from([(0, vec![1]), (1, vec![2, 3]), (2, vec![4])]);
 
         assert_eq!(3, edge_indices.len());
         assert!(edge_indices.contains(&(0, 1)));
@@ -481,6 +567,18 @@ mod tests {
         assert!(edge_indices.contains(&(1, 2)));
         assert_eq!(0, new_source);
         assert_eq!(2, new_dest);
+        for (key, values) in index_mapping.vertex_contracted_to_original {
+            match expected_vertex_mapping.get(&key) {
+                None => assert!(false),
+                Some(expected_values) => assert_eq!(expected_values.clone(), values),
+            }
+        }
+        for (key, values) in index_mapping.edge_contracted_to_original {
+            match expected_edge_mapping.get(&key) {
+                None => assert!(false),
+                Some(expected_values) => assert_eq!(expected_values.clone(), values),
+            }
+        }
     }
 
     #[test]
@@ -512,15 +610,15 @@ mod tests {
             destination_set,
             k,
         ) {
-            Some((new_graph, paths, residual)) => {
-                assert_eq!(8, new_graph.node_count());
-                assert_eq!(8, new_graph.edge_count());
+            Some((paths, residual, index_mapping)) => {
                 let expected_paths_edges = vec![vec![1, 3, 5], vec![0, 2, 4, 6]];
                 assert!(paths
                     .iter()
                     .all(|path| { expected_paths_edges.contains(&path.edges) }));
                 assert_eq!(8, residual.node_count());
                 assert_eq!(9, residual.edge_count());
+                assert_eq!(8, index_mapping.vertex_contracted_to_original.keys().len());
+                assert_eq!(8, index_mapping.edge_contracted_to_original.keys().len());
             }
             None => assert!(false),
         }
