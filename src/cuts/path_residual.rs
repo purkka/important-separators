@@ -37,8 +37,8 @@ pub type ResidualGraph = Graph<(), (), Directed, usize>;
 pub type UnGraph = Graph<(), (), Undirected, usize>;
 
 pub struct IndexMapping {
-    vertex_contracted_to_original: HashMap<usize, Vec<usize>>,
-    edge_contracted_to_original: HashMap<usize, Vec<usize>>,
+    pub vertex_contracted_to_original: HashMap<usize, Vec<usize>>,
+    pub edge_contracted_to_original: HashMap<usize, Vec<usize>>,
 }
 
 impl IndexMapping {
@@ -46,6 +46,16 @@ impl IndexMapping {
         Self {
             vertex_contracted_to_original: Default::default(),
             edge_contracted_to_original: Default::default(),
+        }
+    }
+
+    pub fn from(
+        vertex_mapping: HashMap<usize, Vec<usize>>,
+        edge_mapping: HashMap<usize, Vec<usize>>,
+    ) -> Self {
+        Self {
+            vertex_contracted_to_original: vertex_mapping,
+            edge_contracted_to_original: edge_mapping,
         }
     }
 
