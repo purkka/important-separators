@@ -249,7 +249,7 @@ where
         });
     }
 
-    if paths.len() <= k {
+    if !paths.is_empty() && paths.len() <= k {
         Some((paths, residual_graph_reverse))
     } else {
         None
@@ -549,6 +549,29 @@ mod tests {
         let path_vertex_tuples = get_path_vertex_tuples(&graph, &path, destination);
         let expected = vec![(6, 7), (5, 6), (0, 5)];
         assert_eq!(expected, path_vertex_tuples);
+    }
+
+    #[test]
+    fn no_augmenting_path_if_no_edges_in_use() {
+        let graph = UnGraph::<(), ()>::from_edges(&[
+            (0, 1),
+            (1, 3),
+            (0, 2),
+            (2, 3),
+        ]);
+
+        let source = NodeIndexable::from_index(&graph, 0);
+        let destination = NodeIndexable::from_index(&graph, 3);
+        let edges_in_use = vec![true, false, false, true];
+
+       let res = get_augmenting_paths_and_residual_graph(
+            &graph,
+            source,
+            destination,
+            2,
+            &edges_in_use,
+        );
+        assert!(res.is_none());
     }
 
     #[test]
