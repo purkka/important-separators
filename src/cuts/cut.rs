@@ -69,7 +69,7 @@ impl ImportantCut {
     }
 }
 
-pub fn generate_minimum_cut_closest_to_destination(
+fn generate_minimum_cut_closest_to_destination(
     paths: &Vec<Path>,
     residual_graph_reverse: ResidualGraph,
 ) -> Cut {
@@ -232,9 +232,13 @@ mod tests {
         let source = NodeIndexable::from_index(&graph, 0);
         let destination = NodeIndexable::from_index(&graph, 7);
 
-        if let Some((paths, residual_reverse)) =
-            get_augmenting_paths_and_residual_graph(&graph, source, destination, 2)
-        {
+        if let Some((paths, residual_reverse)) = get_augmenting_paths_and_residual_graph(
+            &graph,
+            source,
+            destination,
+            2,
+            &vec![true; graph.edge_count()],
+        ) {
             let cut_r_max = generate_minimum_cut_closest_to_destination(&paths, residual_reverse);
 
             let expected_source_set_rev: Vec<usize> = vec![0, 1, 2, 3, 4, 5, 6];
@@ -275,9 +279,13 @@ mod tests {
             HashMap::from([(0, vec![1]), (1, vec![2, 3]), (2, vec![4])]),
         );
 
-        if let Some((paths, residual_reverse)) =
-            get_augmenting_paths_and_residual_graph(&contracted_graph, source, destination, 3)
-        {
+        if let Some((paths, residual_reverse)) = get_augmenting_paths_and_residual_graph(
+            &contracted_graph,
+            source,
+            destination,
+            3,
+            &vec![true; contracted_graph.edge_count()],
+        ) {
             let cut_r_max = generate_minimum_cut_closest_to_destination_with_mapping(
                 &paths,
                 residual_reverse,
