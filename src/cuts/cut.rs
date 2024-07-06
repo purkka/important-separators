@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use petgraph::graph::EdgeIndex;
 use petgraph::prelude::Bfs;
-use petgraph::visit::NodeIndexable;
+use petgraph::visit::{EdgeIndexable, EdgeRef, IntoEdgeReferences, NodeIndexable};
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
 
@@ -66,6 +66,28 @@ pub struct ImportantCut {
 impl ImportantCut {
     pub fn from(edge_indices: Vec<usize>) -> Self {
         Self { edge_indices }
+    }
+
+    pub fn vertex_pairs<G>(&self, graph: G) -> Vec<(usize, usize)>
+    where
+        G: NodeIndexable + EdgeIndexable + IntoEdgeReferences,
+    {
+        self.edge_indices
+            .iter()
+            .map(|&edge_index| {
+                match graph
+                    .edge_references()
+                    .find(|edge| EdgeIndexable::to_index(&graph, edge.id()) == edge_index)
+                {
+                    None => panic!("Edge does not exist in graph."),
+                    Some(edge) => {
+                        let edge_source_id = NodeIndexable::to_index(&graph, edge.source());
+                        let edge_target_id = NodeIndexable::to_index(&graph, edge.target());
+                        (edge_source_id, edge_target_id)
+                    }
+                }
+            })
+            .collect()
     }
 }
 
@@ -156,16 +178,20 @@ mod tests {
     use petgraph::graph::NodeIndex;
     use petgraph::visit::NodeIndexable;
 
+    use crate::cuts::{Cut, path_residual};
     use crate::cuts::cut::{
         generate_minimum_cut_closest_to_destination,
-        generate_minimum_cut_closest_to_destination_with_mapping,
+        generate_minimum_cut_closest_to_destination_with_mapping, ImportantCut,
     };
     use crate::cuts::path_residual::{
         get_augmenting_paths_and_residual_graph, IndexMapping, Path, ResidualGraph,
     };
-    use crate::cuts::{path_residual, Cut};
 
     fn all_contained(lhs: Vec<usize>, rhs: Vec<usize>) -> bool {
+        lhs.iter().all(|elem| rhs.contains(elem))
+    }
+
+    fn all_pairs_contained(lhs: Vec<(usize, usize)>, rhs: Vec<(usize, usize)>) -> bool {
         lhs.iter().all(|elem| rhs.contains(elem))
     }
 
@@ -307,5 +333,18 @@ mod tests {
         } else {
             assert!(false);
         }
+    }
+
+    #[test]
+    fn important_cut_get_vertex_pairs() {
+        let graph =
+            graph::UnGraph::<(), ()>::from_edges(&[(0, 1), (0, 2), (1, 4), (0, 3), (1, 2), (2, 3)]);
+
+        let important_cut = ImportantCut::from(vec![0, 2, 3]);
+
+        let pairs = important_cut.vertex_pairs(&graph);
+        assert_eq!(3, pairs.len());
+        let expected_pairs = vec![(0, 1), (1, 4), (0, 3)];
+        assert!(all_pairs_contained(expected_pairs, pairs));
     }
 }
