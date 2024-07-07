@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use itertools::Itertools;
 
 use petgraph::graph::EdgeIndex;
 use petgraph::prelude::Bfs;
@@ -59,13 +60,16 @@ impl Cut {
     }
 }
 
+#[derive(Debug)]
 pub struct ImportantCut {
-    edge_indices: Vec<usize>,
+    pub edge_indices: Vec<usize>,
 }
 
 impl ImportantCut {
     pub fn from(edge_indices: Vec<usize>) -> Self {
-        Self { edge_indices }
+        Self {
+            edge_indices: edge_indices.into_iter().unique().collect()
+        }
     }
 
     pub fn vertex_pairs<G>(&self, graph: G) -> Vec<(usize, usize)>
