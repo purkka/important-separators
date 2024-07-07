@@ -26,9 +26,21 @@ impl Path {
             .last()
             .expect("The vertices of a path cannot be empty")
     }
+    pub fn get_source(paths: &Vec<Path>) -> usize {
+        *paths
+            .first()
+            .expect("Paths should be nonempty")
+            .vertices
+            .first()
+            .expect("The vertices of a path cannot be empty")
+    }
 
     pub fn get_destination_node_index(paths: &Vec<Path>) -> NodeIndex<usize> {
         NodeIndex::from(Path::get_destination(&paths))
+    }
+
+    pub fn get_source_node_index(paths: &Vec<Path>) -> NodeIndex<usize> {
+        NodeIndex::from(Path::get_source(&paths))
     }
 }
 

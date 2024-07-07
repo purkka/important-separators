@@ -97,10 +97,16 @@ fn generate_minimum_cut_closest_to_destination(
 ) -> Cut {
     // we assume that the given paths are valid for the given residual graph, hence this works
     let destination = Path::get_destination_node_index(&paths);
+    let source = Path::get_source_node_index(&paths);
+
     let mut destination_set = HashSet::<usize>::new();
     // find reachable region starting from destination using BFS
     let mut bfs = Bfs::new(&residual_graph_reverse, destination);
     while let Some(node) = bfs.next(&residual_graph_reverse) {
+        // stop traversing graph when we hit the source node
+        if node == source {
+            break;
+        }
         destination_set.insert(NodeIndexable::to_index(&residual_graph_reverse, node));
     }
     let mut source_set = HashSet::<usize>::from_iter(0..residual_graph_reverse.node_count());
