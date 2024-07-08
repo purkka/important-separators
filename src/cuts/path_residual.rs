@@ -126,7 +126,7 @@ fn has_augmenting_path<G>(
     destination: G::NodeId,
     next_edge: &mut [Option<G::EdgeRef>],
     availability: &[bool],
-    edges_in_use: &Vec<bool>,
+    edge_weights: &Vec<usize>,
 ) -> bool
 where
     G: NodeIndexable + EdgeIndexable + Visitable + IntoEdges,
@@ -141,7 +141,7 @@ where
         for edge in graph.edges(vertex) {
             let next = other_endpoint(&graph, edge, vertex);
             let edge_index: usize = EdgeIndexable::to_index(&graph, edge.id());
-            let edge_available = availability[edge_index] && edges_in_use[edge_index];
+            let edge_available = availability[edge_index] && edge_weights[edge_index] > 0;
             if !visited.is_visited(&next) && edge_available {
                 next_edge[NodeIndexable::to_index(&graph, next)] = Some(edge);
                 if next == destination {
@@ -197,7 +197,7 @@ pub fn get_augmenting_paths_and_residual_graph<G>(
     source: G::NodeId,
     destination: G::NodeId,
     k: usize,
-    edges_in_use: &Vec<bool>,
+    edge_weights: &mut Vec<usize>,
 ) -> Option<(Vec<Path>, ResidualGraph)>
 where
     G: NodeIndexable
@@ -222,7 +222,7 @@ where
         destination,
         &mut next_edge,
         &availability,
-        &edges_in_use,
+        &edge_weights,
     ) {
         // get path corresponding to current state of `next_edge`
         let mut vertex = destination;
@@ -241,6 +241,8 @@ where
             // for each edge in the path, mark it as unavailable
             let edge_index = EdgeIndexable::to_index(&graph, edge.id());
             availability[edge_index] = false;
+            // reduce edge capacity by one
+            edge_weights[edge_index] -= 1;
             // add vertex and edge to path
             path_vertices.push(vertex_index);
             path_edges.push(edge_index);
@@ -380,10 +382,10 @@ where
         + IntoEdges
         + IntoEdgeReferences,
 {
-    fn get_new_graph_edge_enabled(in_use: &Vec<bool>, index_mapping: &IndexMapping) -> Vec<bool> {
-        let mut ret = vec![true; index_mapping.edge_contracted_to_original.len()];
+    fn get_new_graph_edge_weights(in_use: &Vec<bool>, index_mapping: &IndexMapping) -> Vec<usize> {
+        let mut ret = vec![0; index_mapping.edge_contracted_to_original.len()];
         for (key, values) in index_mapping.edge_contracted_to_original.clone() {
-            ret[key] = values.iter().any(|&value| in_use[value]);
+            ret[key] = values.iter().filter(|&&value| in_use[value]).count();
         }
         ret
     }
@@ -391,14 +393,14 @@ where
     let (graph, source, destination, index_mapping) =
         create_contracted_graph(&original_graph, source_set, destination_set);
 
-    let new_graph_edges_in_use = get_new_graph_edge_enabled(&edges_in_use, &index_mapping);
+    let mut new_graph_edge_weights = get_new_graph_edge_weights(&edges_in_use, &index_mapping);
 
     match get_augmenting_paths_and_residual_graph(
         &graph,
         NodeIndex::from(source),
         NodeIndex::from(destination),
         k,
-        &new_graph_edges_in_use,
+        &mut new_graph_edge_weights,
     ) {
         Some((paths, residual)) => Some((paths, residual, index_mapping)),
         None => None,
@@ -442,7 +444,7 @@ mod tests {
         let destination = NodeIndexable::from_index(&graph, 4);
         let mut path = vec![None; graph.node_count()];
         let availability = vec![true; graph.edge_count()];
-        let edges_in_use = vec![true; graph.edge_count()];
+        let mut edge_weights = vec![1; graph.edge_count()];
 
         // check that we find a path
         let found_path = has_augmenting_path(
@@ -451,7 +453,7 @@ mod tests {
             destination,
             &mut path,
             &availability,
-            &edges_in_use,
+            &mut edge_weights,
         );
         assert!(found_path);
 
@@ -469,7 +471,7 @@ mod tests {
         let destination = NodeIndexable::from_index(&graph, 5);
         let mut path = vec![None; graph.node_count()];
         let availability = vec![true; graph.edge_count()];
-        let edges_in_use = vec![true; graph.edge_count()];
+        let mut edge_weights = vec![1; graph.edge_count()];
 
         let found_path = has_augmenting_path(
             &graph,
@@ -477,7 +479,7 @@ mod tests {
             destination,
             &mut path,
             &availability,
-            &edges_in_use,
+            &mut edge_weights,
         );
         assert!(found_path);
 
@@ -494,7 +496,7 @@ mod tests {
         let destination = NodeIndexable::from_index(&graph, 3);
         let mut path = vec![None; graph.node_count()];
         let availability = vec![true; graph.edge_count()];
-        let edges_in_use = vec![true; graph.edge_count()];
+        let mut edge_weights = vec![1; graph.edge_count()];
 
         let found_path = has_augmenting_path(
             &graph,
@@ -502,7 +504,7 @@ mod tests {
             destination,
             &mut path,
             &availability,
-            &edges_in_use,
+            &mut edge_weights,
         );
         assert!(!found_path);
     }
@@ -514,7 +516,7 @@ mod tests {
         let destination = NodeIndexable::from_index(&graph, 3);
         let mut path = vec![None; graph.node_count()];
         let availability = vec![true, false, true];
-        let edges_in_use = vec![true; graph.edge_count()];
+        let mut edge_weights = vec![1; graph.edge_count()];
 
         let found_path = has_augmenting_path(
             &graph,
@@ -522,7 +524,7 @@ mod tests {
             destination,
             &mut path,
             &availability,
-            &edges_in_use,
+            &mut edge_weights,
         );
         assert!(!found_path);
     }
@@ -546,7 +548,7 @@ mod tests {
         let mut availability = vec![true; graph.edge_count()];
         availability[2] = false;
         availability[4] = false;
-        let edges_in_use = vec![true; graph.edge_count()];
+        let mut edge_weights = vec![1; graph.edge_count()];
 
         let found_path = has_augmenting_path(
             &graph,
@@ -554,7 +556,7 @@ mod tests {
             destination,
             &mut path,
             &availability,
-            &edges_in_use,
+            &mut edge_weights,
         );
         assert!(found_path);
 
@@ -564,7 +566,7 @@ mod tests {
     }
 
     #[test]
-    fn no_augmenting_path_if_no_edges_in_use() {
+    fn no_augmenting_path_if_no_edges_have_enough_capacity() {
         let graph = UnGraph::<(), ()>::from_edges(&[
             (0, 1),
             (1, 3),
@@ -574,14 +576,14 @@ mod tests {
 
         let source = NodeIndexable::from_index(&graph, 0);
         let destination = NodeIndexable::from_index(&graph, 3);
-        let edges_in_use = vec![true, false, false, true];
+        let mut edge_weights = vec![2, 0, 0, 1];
 
        let res = get_augmenting_paths_and_residual_graph(
             &graph,
             source,
             destination,
             2,
-            &edges_in_use,
+            &mut edge_weights,
         );
         assert!(res.is_none());
     }
@@ -606,7 +608,7 @@ mod tests {
             source,
             destination,
             3,
-            &vec![true; graph.edge_count()],
+            &mut vec![1; graph.edge_count()],
         ) {
             let expected_paths = vec![vec![0, 1, 2, 6], vec![0, 3, 6], vec![0, 4, 5, 6]];
             assert!(paths
@@ -630,7 +632,7 @@ mod tests {
             source,
             destination,
             k,
-            &vec![true; graph.edge_count()],
+            &mut vec![1; graph.edge_count()],
         );
         assert!(paths_and_residual.is_none());
     }
@@ -646,7 +648,7 @@ mod tests {
             source,
             destination,
             1,
-            &vec![true; graph.edge_count()],
+            &mut vec![1; graph.edge_count()],
         ) {
             let residual_reverse_expected_edges = vec![(1, 2), (0, 1), (0, 3), (3, 0)];
 

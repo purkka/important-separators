@@ -273,7 +273,7 @@ mod tests {
             source,
             destination,
             2,
-            &vec![true; graph.edge_count()],
+            &mut vec![1; graph.edge_count()],
         ) {
             let cut_r_max = generate_minimum_cut_closest_to_destination(&paths, residual_reverse);
 
@@ -320,7 +320,7 @@ mod tests {
             source,
             destination,
             3,
-            &vec![true; contracted_graph.edge_count()],
+            &mut vec![1; contracted_graph.edge_count()],
         ) {
             let cut_r_max = generate_minimum_cut_closest_to_destination_with_mapping(
                 &paths,
