@@ -48,6 +48,7 @@ pub type ResidualGraph = Graph<(), (), Directed, usize>;
 
 pub type UnGraph = Graph<(), (), Undirected, usize>;
 
+#[derive(Debug)]
 pub struct IndexMapping {
     pub vertex_contracted_to_original: HashMap<usize, Vec<usize>>,
     pub edge_contracted_to_original: HashMap<usize, Vec<usize>>,
@@ -246,12 +247,14 @@ where
             // add vertex and edge to path
             path_vertices.push(vertex_index);
             path_edges.push(edge_index);
-            // and adjust the reverse residual graph
-            remove_edge_from_residual_graph(
-                &mut residual_graph_reverse,
-                rm_edge_source_index,
-                rm_edge_target_index,
-            );
+            // and adjust the reverse residual graph if the edge weight has gone to zero
+            if edge_weights[edge_index] == 0 {
+                remove_edge_from_residual_graph(
+                    &mut residual_graph_reverse,
+                    rm_edge_source_index,
+                    rm_edge_target_index,
+                );
+            }
         }
 
         // flip order of path vertices/edges to have them start from the source and add to paths
@@ -742,7 +745,7 @@ mod tests {
                     .iter()
                     .all(|path| { expected_paths_edges.contains(&path.edges) }));
                 assert_eq!(8, residual.node_count());
-                assert_eq!(9, residual.edge_count());
+                assert_eq!(11, residual.edge_count());
                 assert_eq!(8, index_mapping.vertex_contracted_to_original.keys().len());
                 assert_eq!(8, index_mapping.edge_contracted_to_original.keys().len());
                 let expected_end_weights = vec![1, 1, 0, 0, 0, 0, 0, 2];
