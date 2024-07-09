@@ -372,7 +372,7 @@ pub fn get_augmenting_paths_and_residual_graph_for_sets<G>(
     destination_set: Vec<usize>,
     k: usize,
     edges_in_use: &Vec<bool>,
-) -> Option<(Vec<Path>, ResidualGraph, IndexMapping)>
+) -> Option<(Vec<Path>, ResidualGraph, IndexMapping, Vec<usize>)>
 where
     G: NodeIndexable
         + EdgeIndexable
@@ -402,7 +402,7 @@ where
         k,
         &mut new_graph_edge_weights,
     ) {
-        Some((paths, residual)) => Some((paths, residual, index_mapping)),
+        Some((paths, residual)) => Some((paths, residual, index_mapping, new_graph_edge_weights)),
         None => None,
     }
 }
@@ -567,18 +567,13 @@ mod tests {
 
     #[test]
     fn no_augmenting_path_if_no_edges_have_enough_capacity() {
-        let graph = UnGraph::<(), ()>::from_edges(&[
-            (0, 1),
-            (1, 3),
-            (0, 2),
-            (2, 3),
-        ]);
+        let graph = UnGraph::<(), ()>::from_edges(&[(0, 1), (1, 3), (0, 2), (2, 3)]);
 
         let source = NodeIndexable::from_index(&graph, 0);
         let destination = NodeIndexable::from_index(&graph, 3);
         let mut edge_weights = vec![2, 0, 0, 1];
 
-       let res = get_augmenting_paths_and_residual_graph(
+        let res = get_augmenting_paths_and_residual_graph(
             &graph,
             source,
             destination,
@@ -704,6 +699,15 @@ mod tests {
 
     #[test]
     fn correct_augmented_paths_and_residual_for_sets() {
+        /* Visualization of the graph used
+           -1-          9---6
+          / | \         |  /
+         /  |  \        | /
+        0---2---4---7---10
+         \  |          /
+          \ |         /
+           -3---5---8-
+        */
         let original_graph = UnGraph::<(), ()>::from_edges(&[
             (0, 1),
             (0, 2),
@@ -732,7 +736,7 @@ mod tests {
             k,
             &vec![true; original_graph.edge_count()],
         ) {
-            Some((paths, residual, index_mapping)) => {
+            Some((paths, residual, index_mapping, weights)) => {
                 let expected_paths_edges = vec![vec![1, 3, 5], vec![0, 2, 4, 6]];
                 assert!(paths
                     .iter()
@@ -741,6 +745,8 @@ mod tests {
                 assert_eq!(9, residual.edge_count());
                 assert_eq!(8, index_mapping.vertex_contracted_to_original.keys().len());
                 assert_eq!(8, index_mapping.edge_contracted_to_original.keys().len());
+                let expected_end_weights = vec![1, 1, 0, 0, 0, 0, 0, 2];
+                assert_eq!(expected_end_weights, weights);
             }
             None => assert!(false),
         }
