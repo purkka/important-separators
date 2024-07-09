@@ -109,7 +109,7 @@ fn generate_minimum_cut_closest_to_destination(
     while let Some(node) = bfs.next(&residual_graph_reverse) {
         // stop traversing graph when we hit the source node
         if node == source {
-            break;
+            continue;
         }
         destination_set.insert(NodeIndexable::to_index(&residual_graph_reverse, node));
     }
