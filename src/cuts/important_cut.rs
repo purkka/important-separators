@@ -113,3 +113,90 @@ where
 
     cuts
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::cuts::cut::ImportantCut;
+    use crate::cuts::important_cut::important_cuts;
+    use crate::cuts::path_residual::UnGraph;
+
+    #[test]
+    fn simple_line() {
+        let graph = UnGraph::from_edges(&[(0, 1), (1, 2), (2, 3), (3, 4)]);
+        let source = vec![0];
+        let destination = vec![4];
+        let k = 1;
+
+        important_cuts(&graph, source, destination, k)
+            .iter()
+            .for_each(|imp_cut| {
+                assert_eq!(1, imp_cut.edge_indices.len());
+                assert_eq!(3, imp_cut.edge_indices[0]);
+                assert_eq!((3, 4), imp_cut.vertex_pairs(&graph)[0]);
+            });
+    }
+
+    fn all_contained(lhs: Vec<usize>, rhs: Vec<usize>) -> bool {
+        lhs.iter().all(|elem| rhs.contains(elem))
+    }
+
+    fn all_contained_vec(lhs: Vec<Vec<usize>>, rhs: Vec<Vec<usize>>) -> bool {
+        lhs.iter().all(|lhs_elem| {
+            rhs.iter()
+                .find(|&rhs_elem| all_contained(lhs_elem.clone(), rhs_elem.clone()))
+                .is_some()
+        })
+    }
+
+    #[test]
+    fn simple_y_shape() {
+        let graph = UnGraph::from_edges(&[(0, 1), (1, 2), (1, 3)]);
+        let source = vec![0];
+        let destination = vec![2, 3];
+
+        // for k = 1
+        let k1 = 1;
+
+        let result_1 = important_cuts(&graph, source.clone(), destination.clone(), k1);
+        let result_1_edges = ImportantCut::vec_edge_indices(result_1);
+
+        let expected_important_cuts_1 = vec![vec![0]];
+        assert!(all_contained_vec(expected_important_cuts_1, result_1_edges));
+
+        // for k = 2
+        let k2 = 2;
+
+        let result_2 = important_cuts(&graph, source, destination, k2);
+        let result_2_edges = ImportantCut::vec_edge_indices(result_2);
+
+        let expected_important_cuts_2 = vec![vec![0], vec![1, 2]];
+        assert!(all_contained_vec(expected_important_cuts_2, result_2_edges));
+    }
+
+    #[test]
+    fn simple_binary_tree() {
+        fn create_binary_tree(levels: usize) -> UnGraph {
+            assert!(levels > 0);
+            let mut edges = vec![];
+            let total_nodes_with_children = (2 << (levels - 2)) - 1;
+            for i in 0..total_nodes_with_children {
+                let left_child = 2 * i + 1;
+                let right_child = 2 * i + 2;
+                edges.push((i, left_child));
+                edges.push((i, right_child));
+            }
+            UnGraph::from_edges(edges)
+        }
+
+        let graph = create_binary_tree(3);
+        let source = vec![0];
+        let destination = (3..=6).collect();
+        let k = 3;
+
+        let result = important_cuts(&graph, source, destination, k);
+        let result_edges = ImportantCut::vec_edge_indices(result);
+
+        let expected_important_cuts = vec![vec![0, 4, 5], vec![2, 3, 1]];
+        assert!(all_contained_vec(expected_important_cuts, result_edges));
+    }
+}
