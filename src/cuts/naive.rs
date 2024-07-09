@@ -6,6 +6,7 @@ use petgraph::visit::{
 };
 
 /// Get cuts between `source` and `destination` of size at most `k`
+#[allow(dead_code)]
 pub fn generate_cuts<G>(graph: G, source: G::NodeId, destination: G::NodeId, k: usize) -> Vec<Cut>
 where
     G: EdgeIndexable
@@ -59,6 +60,7 @@ where
     ret
 }
 
+#[allow(dead_code)]
 pub fn filter_important_cuts(cuts: &Vec<Cut>) -> Vec<Cut> {
     // TODO Consider writing this a bit nicer using combinations or something similar
     cuts.iter()

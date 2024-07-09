@@ -72,6 +72,7 @@ impl ImportantCut {
         }
     }
 
+    #[allow(dead_code)]
     pub fn vertex_pairs<G>(&self, graph: G) -> Vec<(usize, usize)>
     where
         G: NodeIndexable + EdgeIndexable + IntoEdgeReferences,

@@ -1,8 +1,8 @@
 mod cut;
-mod path_residual;
-mod naive;
 mod important_cut;
+mod naive;
+mod path_residual;
 
 pub use cut::Cut;
-pub use naive::filter_important_cuts;
-pub use naive::generate_cuts;
+pub use cut::ImportantCut;
+pub use important_cut::important_cuts;

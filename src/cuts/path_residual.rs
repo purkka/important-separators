@@ -62,7 +62,8 @@ impl IndexMapping {
         }
     }
 
-    pub fn from(
+    #[allow(dead_code)]
+    fn from(
         vertex_mapping: HashMap<usize, Vec<usize>>,
         edge_mapping: HashMap<usize, Vec<usize>>,
     ) -> Self {
@@ -385,7 +386,10 @@ where
         return None;
     }
 
-    fn get_new_graph_edge_capacities(in_use: &Vec<bool>, index_mapping: &IndexMapping) -> Vec<usize> {
+    fn get_new_graph_edge_capacities(
+        in_use: &Vec<bool>,
+        index_mapping: &IndexMapping,
+    ) -> Vec<usize> {
         let mut ret = vec![0; index_mapping.edge_contracted_to_original.len()];
         for (key, values) in index_mapping.edge_contracted_to_original.clone() {
             ret[key] = values.iter().filter(|&&value| in_use[value]).count();
@@ -396,7 +400,8 @@ where
     let (graph, source, destination, index_mapping) =
         create_contracted_graph(&original_graph, source_set, destination_set);
 
-    let mut new_graph_edge_capacities = get_new_graph_edge_capacities(&edges_in_use, &index_mapping);
+    let mut new_graph_edge_capacities =
+        get_new_graph_edge_capacities(&edges_in_use, &index_mapping);
 
     match get_augmenting_paths_and_residual_graph(
         &graph,
@@ -405,7 +410,9 @@ where
         k,
         &mut new_graph_edge_capacities,
     ) {
-        Some((paths, residual)) => Some((paths, residual, index_mapping, new_graph_edge_capacities)),
+        Some((paths, residual)) => {
+            Some((paths, residual, index_mapping, new_graph_edge_capacities))
+        }
         None => None,
     }
 }
@@ -449,13 +456,8 @@ mod tests {
         let mut edge_capacities = vec![1; graph.edge_count()];
 
         // check that we find a path
-        let found_path = has_augmenting_path(
-            &graph,
-            source,
-            destination,
-            &mut path,
-            &mut edge_capacities,
-        );
+        let found_path =
+            has_augmenting_path(&graph, source, destination, &mut path, &mut edge_capacities);
         assert!(found_path);
 
         // check the correctness of the path
@@ -473,13 +475,8 @@ mod tests {
         let mut path = vec![None; graph.node_count()];
         let mut edge_capacities = vec![1; graph.edge_count()];
 
-        let found_path = has_augmenting_path(
-            &graph,
-            source,
-            destination,
-            &mut path,
-            &mut edge_capacities,
-        );
+        let found_path =
+            has_augmenting_path(&graph, source, destination, &mut path, &mut edge_capacities);
         assert!(found_path);
 
         let path_vertex_tuples = get_path_vertex_tuples(&graph, &path, destination);
@@ -496,13 +493,8 @@ mod tests {
         let mut path = vec![None; graph.node_count()];
         let mut edge_capacities = vec![1; graph.edge_count()];
 
-        let found_path = has_augmenting_path(
-            &graph,
-            source,
-            destination,
-            &mut path,
-            &mut edge_capacities,
-        );
+        let found_path =
+            has_augmenting_path(&graph, source, destination, &mut path, &mut edge_capacities);
         assert!(!found_path);
     }
 
@@ -514,13 +506,8 @@ mod tests {
         let mut path = vec![None; graph.node_count()];
         let mut edge_capacities = vec![1, 0, 1];
 
-        let found_path = has_augmenting_path(
-            &graph,
-            source,
-            destination,
-            &mut path,
-            &mut edge_capacities,
-        );
+        let found_path =
+            has_augmenting_path(&graph, source, destination, &mut path, &mut edge_capacities);
         assert!(!found_path);
     }
 
@@ -544,13 +531,8 @@ mod tests {
         edge_capacities[2] = 0;
         edge_capacities[4] = 0;
 
-        let found_path = has_augmenting_path(
-            &graph,
-            source,
-            destination,
-            &mut path,
-            &mut edge_capacities,
-        );
+        let found_path =
+            has_augmenting_path(&graph, source, destination, &mut path, &mut edge_capacities);
         assert!(found_path);
 
         let path_vertex_tuples = get_path_vertex_tuples(&graph, &path, destination);

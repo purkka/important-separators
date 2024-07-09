@@ -87,6 +87,7 @@ fn generate_graph(
     egui_graphs::Graph::from(&g)
 }
 
+#[allow(dead_code)]
 pub fn draw_graph(graph: petgraph::Graph<(), (), Undirected>, cut: Cut) {
     let native_options = eframe::NativeOptions::default();
     run_native(

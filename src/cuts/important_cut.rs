@@ -4,7 +4,7 @@ use petgraph::visit::{IntoEdgeReferences, NodeIndexable};
 use crate::cuts::cut::{generate_minimum_cut_closest_to_destination_with_mapping, ImportantCut};
 use crate::cuts::path_residual::{get_augmenting_paths_and_residual_graph_for_sets, UnGraph};
 
-fn important_cuts<G>(
+pub fn important_cuts<G>(
     original_graph: G,
     source_set: Vec<usize>,
     destination_set: Vec<usize>,
