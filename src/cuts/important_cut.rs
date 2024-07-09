@@ -29,12 +29,12 @@ where
             k,
             &edges_in_use,
         ) {
-            Some((paths, residual, index_mapping, edge_weights)) => {
+            Some((paths, residual, index_mapping, end_edge_capacities)) => {
                 let min_cut = generate_minimum_cut_closest_to_destination_with_mapping(
                     &paths,
                     residual,
                     index_mapping,
-                    edge_weights,
+                    end_edge_capacities,
                 );
 
                 // Report C u Z
