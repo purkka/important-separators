@@ -385,6 +385,11 @@ where
         + IntoEdges
         + IntoEdgeReferences,
 {
+    // in this case there cannot be anymore augmenting paths
+    if source_set.len() >= original_graph.node_count() {
+        return None;
+    }
+
     fn get_new_graph_edge_weights(in_use: &Vec<bool>, index_mapping: &IndexMapping) -> Vec<usize> {
         let mut ret = vec![0; index_mapping.edge_contracted_to_original.len()];
         for (key, values) in index_mapping.edge_contracted_to_original.clone() {
