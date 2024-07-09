@@ -18,7 +18,7 @@ where
         source_set: Vec<usize>,
         destination_set: Vec<usize>,
         k: usize,
-        edges_in_use: &mut Vec<bool>,
+        edges_in_use: Vec<bool>,
         edges_in_cut: Vec<usize>,
         important_cuts: &mut Vec<ImportantCut>,
     ) {
@@ -27,14 +27,14 @@ where
             source_set,
             destination_set.clone(),
             k,
-            edges_in_use,
+            &edges_in_use,
         ) {
-            Some((paths, residual, index_mapping)) => {
-                // this min cut is in the original graph
+            Some((paths, residual, index_mapping, edge_weights)) => {
                 let min_cut = generate_minimum_cut_closest_to_destination_with_mapping(
                     &paths,
                     residual,
                     index_mapping,
+                    edge_weights,
                 );
 
                 // Report C u Z
@@ -48,27 +48,37 @@ where
                 }
 
                 // pick arbitrary edge from cut
-                let (edge, vertex_in_dest) = min_cut.arbitrary_edge(&original_graph);
+                let (edge, destination_side_vertex) = min_cut.arbitrary_edge(&original_graph);
 
                 // branch into two cases
-                // 1. the arbitrary edge is *not* part of the important cut
+                // 1. the arbitrary edge is *not* part of an important cut
+
+                // the new source set is the source set of the min cut together with the destination
+                // side vertex of our chosen edge
                 important_cut_inner(
                     &original_graph,
-                    [min_cut.source_set.clone(), vec![vertex_in_dest]].concat(),
+                    [min_cut.source_set.clone(), vec![destination_side_vertex]].concat(),
                     destination_set.clone(),
                     k,
-                    edges_in_use,
+                    edges_in_use.clone(),
                     edges_in_cut.clone(),
                     important_cuts,
                 );
-                // 2. the arbitrary edge is part of the important cut
-                edges_in_use[edge] = false;
+
+                // 2. the arbitrary edge is part of an important cut
+
+                // in this case we disable the edge by marking it not in use anymore
+                let mut new_edges_in_use = edges_in_use.clone();
+                new_edges_in_use[edge] = false;
+
+                // the new source is the source set of the min cut, and now that we've added an edge
+                // to an important cut, we reduce k by one
                 important_cut_inner(
                     &original_graph,
                     min_cut.source_set,
                     destination_set.clone(),
                     k - 1,
-                    edges_in_use,
+                    new_edges_in_use,
                     [edges_in_cut, vec![edge]].concat(),
                     important_cuts,
                 );
@@ -89,14 +99,14 @@ where
     let original_graph_as_un_graph = UnGraph::from_edges(original_graph_edges);
 
     let mut cuts = vec![];
-    let mut enabled_edges = vec![true; original_graph_as_un_graph.edge_count()];
+    let initial_edges_in_use = vec![true; original_graph_as_un_graph.edge_count()];
 
     important_cut_inner(
         &original_graph_as_un_graph,
         source_set,
         destination_set,
         k,
-        &mut enabled_edges,
+        initial_edges_in_use,
         vec![],
         &mut cuts,
     );

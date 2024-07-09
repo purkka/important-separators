@@ -68,7 +68,7 @@ pub struct ImportantCut {
 impl ImportantCut {
     pub fn from(edge_indices: Vec<usize>) -> Self {
         Self {
-            edge_indices: edge_indices.into_iter().unique().collect()
+            edge_indices: edge_indices.into_iter().unique().collect(),
         }
     }
 
@@ -92,6 +92,10 @@ impl ImportantCut {
                 }
             })
             .collect()
+    }
+
+    pub fn vec_edge_indices(cuts: Vec<ImportantCut>) -> Vec<Vec<usize>> {
+        cuts.iter().map(|ic| ic.edge_indices.clone()).collect()
     }
 }
 
