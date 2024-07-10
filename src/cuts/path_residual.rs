@@ -63,7 +63,7 @@ impl IndexMapping {
     }
 
     #[allow(dead_code)]
-    fn from(
+    pub fn from(
         vertex_mapping: HashMap<usize, Vec<usize>>,
         edge_mapping: HashMap<usize, Vec<usize>>,
     ) -> Self {
@@ -198,7 +198,7 @@ pub fn get_augmenting_paths_and_residual_graph<G>(
     source: G::NodeId,
     destination: G::NodeId,
     k: usize,
-    edge_capacities: &mut Vec<usize>,
+    initial_edge_capacities: &Vec<usize>,
 ) -> Option<(Vec<Path>, ResidualGraph)>
 where
     G: NodeIndexable
@@ -213,6 +213,8 @@ where
     // we build the reverse of the residual graph as we use it to find the minimum cut closest
     // to the target
     let mut residual_graph_reverse = generate_initial_residual_graph(&graph);
+
+    let mut edge_capacities = initial_edge_capacities.clone();
 
     let mut paths: Vec<Path> = vec![];
 
@@ -371,7 +373,7 @@ pub fn get_augmenting_paths_and_residual_graph_for_sets<G>(
     destination_set: Vec<usize>,
     k: usize,
     edges_in_use: &Vec<bool>,
-) -> Option<(Vec<Path>, ResidualGraph, IndexMapping, Vec<usize>)>
+) -> Option<(Vec<Path>, ResidualGraph, IndexMapping)>
 where
     G: NodeIndexable
         + EdgeIndexable
@@ -400,19 +402,16 @@ where
     let (graph, source, destination, index_mapping) =
         create_contracted_graph(&original_graph, source_set, destination_set);
 
-    let mut new_graph_edge_capacities =
-        get_new_graph_edge_capacities(&edges_in_use, &index_mapping);
+    let new_graph_edge_capacities = get_new_graph_edge_capacities(&edges_in_use, &index_mapping);
 
     match get_augmenting_paths_and_residual_graph(
         &graph,
         NodeIndex::from(source),
         NodeIndex::from(destination),
         k,
-        &mut new_graph_edge_capacities,
+        &new_graph_edge_capacities,
     ) {
-        Some((paths, residual)) => {
-            Some((paths, residual, index_mapping, new_graph_edge_capacities))
-        }
+        Some((paths, residual)) => Some((paths, residual, index_mapping)),
         None => None,
     }
 }
@@ -711,7 +710,7 @@ mod tests {
             k,
             &vec![true; original_graph.edge_count()],
         ) {
-            Some((paths, residual, index_mapping, capacities)) => {
+            Some((paths, residual, index_mapping)) => {
                 let expected_paths_edges = vec![vec![1, 3, 5], vec![0, 2, 4, 6]];
                 assert!(paths
                     .iter()
@@ -720,8 +719,6 @@ mod tests {
                 assert_eq!(11, residual.edge_count());
                 assert_eq!(8, index_mapping.vertex_contracted_to_original.keys().len());
                 assert_eq!(8, index_mapping.edge_contracted_to_original.keys().len());
-                let expected_end_capacities = vec![1, 1, 0, 0, 0, 0, 0, 2];
-                assert_eq!(expected_end_capacities, capacities);
             }
             None => assert!(false),
         }

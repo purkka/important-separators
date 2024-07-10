@@ -147,7 +147,6 @@ pub fn generate_minimum_cut_closest_to_destination_with_mapping(
     paths: &Vec<Path>,
     residual_graph_reverse: ResidualGraph,
     index_mapping: IndexMapping,
-    end_edge_capacities: Vec<usize>,
 ) -> Cut {
     let min_cut_contracted =
         generate_minimum_cut_closest_to_destination(paths, residual_graph_reverse);
@@ -179,17 +178,7 @@ pub fn generate_minimum_cut_closest_to_destination_with_mapping(
     for cut_edge in min_cut_contracted.cut_edge_set {
         match index_mapping.edge_contracted_to_original.get(&cut_edge) {
             None => panic!("Index mapping missing entry for edge {}", cut_edge),
-            Some(values) => {
-                let nof_edges_from_mapping = values.len() - end_edge_capacities[cut_edge];
-                let mut values_shuffled = values.clone();
-                values_shuffled.shuffle(&mut thread_rng());
-                let values_to_mapping = values_shuffled
-                    .iter()
-                    .take(nof_edges_from_mapping)
-                    .cloned()
-                    .collect::<Vec<usize>>();
-                edge_set_mapped.extend(values_to_mapping)
-            }
+            Some(values) => edge_set_mapped.extend(values.clone()),
         }
     }
 
@@ -330,27 +319,24 @@ mod tests {
             HashMap::from([(0, vec![0, 1]), (1, vec![2]), (2, vec![3, 4])]),
             HashMap::from([(0, vec![1]), (1, vec![2, 3]), (2, vec![4])]),
         );
-        let end_edge_capacities = vec![0, 1, 0];
 
         if let Some((paths, residual_reverse)) = get_augmenting_paths_and_residual_graph(
             &contracted_graph,
             source,
             destination,
-            2,
+            3,
             &mut vec![1; contracted_graph.edge_count()],
         ) {
             let cut_r_max = generate_minimum_cut_closest_to_destination_with_mapping(
                 &paths,
                 residual_reverse,
                 index_mapping,
-                end_edge_capacities,
             );
 
             let expected_source_set: Vec<usize> = vec![0, 1, 2];
             let expected_destination_set: Vec<usize> = vec![3, 4];
-            let expected_cut_edge_set_a: Vec<usize> = vec![2, 4];
-            let expected_cut_edge_set_b: Vec<usize> = vec![3, 4];
-            let expected_cut_size = 2;
+            let expected_cut_edge_set: Vec<usize> = vec![2, 3, 4];
+            let expected_cut_size = 3;
 
             assert_eq!(expected_cut_size, cut_r_max.size);
             assert!(all_contained(expected_source_set, cut_r_max.source_set));
@@ -358,10 +344,10 @@ mod tests {
                 expected_destination_set,
                 cut_r_max.destination_set
             ));
-            assert!(
-                all_contained(expected_cut_edge_set_a, cut_r_max.cut_edge_set.clone())
-                    || all_contained(expected_cut_edge_set_b, cut_r_max.cut_edge_set.clone())
-            );
+            assert!(all_contained(
+                expected_cut_edge_set,
+                cut_r_max.cut_edge_set.clone()
+            ));
         } else {
             assert!(false);
         }
