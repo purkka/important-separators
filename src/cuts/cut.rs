@@ -95,8 +95,28 @@ impl ImportantCut {
             .collect()
     }
 
+    #[allow(dead_code)]
     pub fn vec_edge_indices(cuts: Vec<ImportantCut>) -> Vec<Vec<usize>> {
         cuts.iter().map(|ic| ic.edge_indices.clone()).collect()
+    }
+
+    pub fn vec_vertex_indices<G>(graph: G, cuts: Vec<ImportantCut>) -> Vec<Vec<(usize, usize)>>
+    where
+        G: NodeIndexable + EdgeIndexable + IntoEdgeReferences,
+    {
+        cuts.iter()
+            .map(|ic| ic.vertex_pairs(&graph))
+            .unique()
+            .collect()
+    }
+
+    pub fn print_important_cuts<G>(graph: G, cuts: Vec<ImportantCut>)
+        where
+            G: NodeIndexable + EdgeIndexable + IntoEdgeReferences, {
+        println!("Important cuts:");
+        for ic_indices in ImportantCut::vec_vertex_indices(&graph, cuts) {
+            println!("- {:?}", ic_indices);
+        }
     }
 }
 
